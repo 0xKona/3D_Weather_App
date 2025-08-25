@@ -7,8 +7,6 @@ export const vertexShader = `
     varying vec2 vUv;
     varying vec3 vWorldPosition;
     
-    uniform float bumpScale;
-    uniform sampler2D bumpMap;
     
     void main() {
     vUv = uv;
