@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import gsap from 'gsap';
+import { vertexShader } from './shaders/vertex';
+import { fragmentShader } from './shaders/fragment';
 
 interface Props {
   coords: [string, string];
@@ -67,57 +69,8 @@ const EarthModel = ({ coords }: Props) => {
       bumpScale: { value: 0.04 },
       sunDirection: { value: new THREE.Vector3(...sunDir).normalize() },
     },
-    vertexShader: `
-      varying vec3 vNormal;
-      varying vec3 vPosition;
-      varying vec2 vUv;
-      varying vec3 vWorldPosition;
-      
-      uniform float bumpScale;
-      uniform sampler2D bumpMap;
-      
-      void main() {
-        vUv = uv;
-        vNormal = normalize(normalMatrix * normal);
-        vPosition = position;
-        
-        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-        vWorldPosition = worldPosition.xyz;
-        
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform sampler2D dayTexture;
-      uniform sampler2D nightTexture;
-      uniform sampler2D specularMap;
-      uniform vec3 sunDirection;
-      
-      varying vec3 vNormal;
-      varying vec3 vPosition;
-      varying vec2 vUv;
-      varying vec3 vWorldPosition;
-      
-      void main() {
-        vec3 dayColor = texture2D(dayTexture, vUv).rgb;
-        vec3 nightColor = texture2D(nightTexture, vUv).rgb;
-        
-        // Calculate lighting based on sun direction
-        float sunDot = dot(vNormal, sunDirection);
-        float lightIntensity = max(0.0, sunDot);
-        
-        // Create smooth transition between day and night
-        float mixFactor = smoothstep(-0.1, 0.1, sunDot);
-        
-        // Mix day and night textures based on lighting
-        vec3 color = mix(nightColor * 2.0, dayColor, mixFactor);
-        
-        // Add some ambient light so night side isn't completely black
-        color += dayColor * 0.1;
-        
-        gl_FragColor = vec4(color, 1.0);
-      }
-    `,
+    vertexShader: vertexShader,
+    fragmentShader: fragmentShader,
   });
 
   const cloudsMaterial = new THREE.MeshBasicMaterial({
