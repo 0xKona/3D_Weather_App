@@ -131,7 +131,7 @@ const EarthModel = ({ coords }: Props) => {
   useEffect(() => {
     if (earthGroupRef.current && coords && coords[0] && coords[1]) {
       const lat = -parseFloat(coords[0]);
-      const lng = -parseFloat(coords[1]);
+      const lng = parseFloat(coords[1]);
       
       // Only process valid coordinates
       if (!isNaN(lat) && !isNaN(lng)) {
