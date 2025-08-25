@@ -43,13 +43,13 @@ const EarthModel = ({ coords }: Props) => {
 
   // Create stars geometry and material
   const starsGeometry = useMemo(() => new THREE.BufferGeometry(), []);
-  const starsMaterial = new THREE.PointsMaterial({
+  const starsMaterial = useMemo(() => new THREE.PointsMaterial({
     color: 0xffffff,
     size: 2,
     sizeAttenuation: false,
     transparent: true,
     opacity: 0.8,
-  });
+  }), []);
 
   // Create starfield with different sized stars for depth
   useEffect(() => {
