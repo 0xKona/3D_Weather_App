@@ -1,10 +1,9 @@
 'use client';
 
 import { useFrame, useLoader } from '@react-three/fiber';
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
 import { vertexShader } from './shaders/vertex';
 import { fragmentShader } from './shaders/fragment';
 import gsap from 'gsap';
@@ -14,12 +13,13 @@ interface Props {
 }
 
 const EarthModel = ({ coords }: Props) => {
-  const sunDir: [number, number, number] = [7, 5, 0];
+  const sunDir: [number, number, number] = [10, 8, 0];
 
   const tiltGroupRef = useRef<THREE.Group>(null);
   const earthGroupRef = useRef<THREE.Group>(null);
   const cloudsMeshRef = useRef<THREE.Mesh>(null);
   const earthMeshRef = useRef<THREE.Mesh>(null);
+  const starsRef = useRef<THREE.Points>(null);
 
   // Load textures
   const earthMap = useLoader(THREE.TextureLoader, './textures/8081_earthmap10k.jpg');
@@ -41,6 +41,47 @@ const EarthModel = ({ coords }: Props) => {
     });
   }, [earthMap, earthSpec, earthBump, earthLights, earthClouds]);
 
+  // Create stars geometry and material
+  const starsGeometry = useMemo(() => new THREE.BufferGeometry(), []);
+  const starsMaterial = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 2,
+    sizeAttenuation: false,
+    transparent: true,
+    opacity: 0.8,
+  });
+
+  // Create starfield with different sized stars for depth
+  useEffect(() => {
+    const starsVertices = [];
+    const starsColors = [];
+    const starsSizes = [];
+    
+    for (let i = 0; i < 15000; i++) {
+      // Create stars in a large sphere around the scene
+      const radius = 1000;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      
+      const x = radius * Math.sin(phi) * Math.cos(theta);
+      const y = radius * Math.sin(phi) * Math.sin(theta);
+      const z = radius * Math.cos(phi);
+      
+      starsVertices.push(x, y, z);
+      
+      // Vary star colors slightly (white to blue-white)
+      const colorVariation = 0.7 + Math.random() * 0.3;
+      starsColors.push(colorVariation, colorVariation, 1.0);
+      
+      // Vary star sizes for depth effect
+      starsSizes.push(Math.random() * 2 + 0.5);
+    }
+    
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+    starsGeometry.setAttribute('size', new THREE.Float32BufferAttribute(starsSizes, 1));
+  }, [starsGeometry]);
+
   const geometry = new THREE.SphereGeometry(1, 128, 96);
 
   const earthMaterial = new THREE.ShaderMaterial({
@@ -51,6 +92,7 @@ const EarthModel = ({ coords }: Props) => {
       bumpMap: { value: earthBump },
       bumpScale: { value: 0.04 },
       sunDirection: { value: new THREE.Vector3(...sunDir).normalize() },
+      emissionStrength: { value: 0.8 }, // Add emission strength control
     },
     vertexShader: vertexShader,
     fragmentShader: fragmentShader,
@@ -69,10 +111,10 @@ const EarthModel = ({ coords }: Props) => {
     side: THREE.BackSide,
   });
 
-  // Set Earth's real axial tilt once (23.44 degrees)
+  // Set Earth's axial tilt (Real is 23.44)
   useEffect(() => {
     if (tiltGroupRef.current) {
-      tiltGroupRef.current.rotation.z = THREE.MathUtils.degToRad(23.44);
+      tiltGroupRef.current.rotation.z = THREE.MathUtils.degToRad(15);
     }
   }, []);
 
@@ -117,17 +159,25 @@ const EarthModel = ({ coords }: Props) => {
     }
   }, [coords]);
 
-  // Animate clouds only
+  // Animate clouds and stars
   useFrame(() => {
     if (cloudsMeshRef.current) {
       cloudsMeshRef.current.rotation.y += 0.00005;
+    }
+    // Slowly rotate stars for subtle movement
+    if (starsRef.current) {
+      starsRef.current.rotation.x += 0.0001;
+      starsRef.current.rotation.y += 0.0002;
     }
   });
 
   return (
     <>
-      <ambientLight intensity={0.1} />
-      <directionalLight position={sunDir} intensity={5.0} />
+      {/* Starfield background */}
+      <points ref={starsRef} geometry={starsGeometry} material={starsMaterial} />
+      
+      <ambientLight intensity={0.8} />
+      <directionalLight position={sunDir} intensity={5} />
       {/* Axial tilt group - applied first */}
       <group ref={tiltGroupRef}>
         {/* Earth rotation group - rotates around tilted axis */}
@@ -150,17 +200,9 @@ const EarthScene = ({ coords }: Props) => {
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
-        outputColorSpace: THREE.LinearSRGBColorSpace,
+        toneMappingExposure: 0.5,
       }}
     >
-      <OrbitControls
-        enableDamping={true}
-        dampingFactor={0.05}
-        minDistance={1.5}
-        maxDistance={5}
-        // Allow full rotation around the tilted Earth
-        enableRotate={true}
-      />
       <EarthModel coords={coords} />
     </Canvas>
   );

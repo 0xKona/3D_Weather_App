@@ -24,8 +24,11 @@ export const fragmentShader = `
     // Create smooth transition between day and night
     float mixFactor = smoothstep(-0.1, 0.1, sunDot);
     
+    // Slightly brighten day colors for better visibility
+    vec3 enhancedDayColor = dayColor * 1.3; // 30% brightness boost for day areas
+    
     // Mix day and night textures based on lighting
-    vec3 color = mix(nightColor * 2.0, dayColor, mixFactor);
+    vec3 color = mix(nightColor * 2.0, enhancedDayColor, mixFactor);
     
     // Add some ambient light so night side isn't completely black
     color += dayColor * 0.25; // Increase from 0.1 to 0.25
