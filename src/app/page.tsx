@@ -7,7 +7,7 @@ type CoordType = 'lat' | 'lon'
 
 export default function Home() {
 
-  const [coords, setCoords] = React.useState<[string, string]>(['', ''])
+  const [coords, setCoords] = React.useState<[string, string]>(['0', '0'])
 
   function setNewCoords(typeOf: CoordType, newCoords: string) {
     setCoords((prevState) => {

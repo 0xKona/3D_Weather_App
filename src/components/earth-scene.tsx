@@ -5,23 +5,15 @@ import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import gsap from 'gsap';
 import { vertexShader } from './shaders/vertex';
 import { fragmentShader } from './shaders/fragment';
+import gsap from 'gsap';
 
 interface Props {
   coords: [string, string];
 }
 
-function latLngToRotation(lat: number, lng: number) {
-  // Use latitude and longitude in the correct order
-  const y = -lng * (Math.PI / 180); // Y axis: longitude
-  const x = -(lat - 90) * (Math.PI / 180); // X axis: latitude
-  return { x, y };
-}
-
 const EarthModel = ({ coords }: Props) => {
-
   const sunDir: [number, number, number] = [7, 5, 0];
 
   const tiltGroupRef = useRef<THREE.Group>(null);
@@ -39,27 +31,18 @@ const EarthModel = ({ coords }: Props) => {
   // Enhance texture quality
   useEffect(() => {
     const textures = [earthMap, earthSpec, earthBump, earthLights];
-    
     textures.forEach(texture => {
-      // Set anisotropic filtering for sharper textures at angles
-      texture.anisotropy = 16; // Maximum supported by most GPUs
-      
-      // Use highest quality filtering
-      texture.magFilter = THREE.LinearFilter; // For when texture is larger than screen pixels
-      texture.minFilter = THREE.LinearMipmapLinearFilter; // For when texture is smaller than screen pixels
+      texture.anisotropy = 16;
+      texture.magFilter = THREE.LinearFilter;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
       texture.colorSpace = THREE.SRGBColorSpace;
-      // Generate mipmaps for better quality at different distances
       texture.generateMipmaps = true;
-      // Wrap mode (prevents edge bleeding)
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     });
   }, [earthMap, earthSpec, earthBump, earthLights, earthClouds]);
 
-  // Create geometry with higher detail
-  const detail = 40;
-  const geometry = new THREE.IcosahedronGeometry(1, detail);
+  const geometry = new THREE.SphereGeometry(1, 128, 96);
 
-  // Create custom earth material with day/night lighting
   const earthMaterial = new THREE.ShaderMaterial({
     uniforms: {
       dayTexture: { value: earthMap },
@@ -89,33 +72,48 @@ const EarthModel = ({ coords }: Props) => {
   // Set Earth's real axial tilt once (23.44 degrees)
   useEffect(() => {
     if (tiltGroupRef.current) {
-      // Earth's actual axial tilt is 23.44 degrees
-      tiltGroupRef.current.rotation.z = 23.44 * Math.PI / 180;
+      tiltGroupRef.current.rotation.z = THREE.MathUtils.degToRad(23.44);
     }
   }, []);
 
-  // Animate rotation when coords change (only affects earthGroup, not tilt)
+  // Initialize with default rotation to show Greenwich at (0,0)
   useEffect(() => {
-    if (
-      earthGroupRef.current &&
-      coords &&
-      coords[0] &&
-      coords[1] &&
-      !isNaN(Number(coords[0])) &&
-      !isNaN(Number(coords[1]))
-    ) {
-      const lat = parseFloat(coords[0]);
-      const lng = parseFloat(coords[1]);
-      const { x, y } = latLngToRotation(lat, lng);
+    if (earthGroupRef.current) {
+      // Default rotation to show Greenwich (0°, 0°) at center
+      // The texture has Americas at center by default, rotation needed to show Greenwich
+      earthGroupRef.current.rotation.set(0, THREE.MathUtils.degToRad(-90), 0);
+    }
+  }, []);
 
-      // Animate rotation using GSAP (only on earthGroup, tilt remains locked)
-      gsap.to(earthGroupRef.current.rotation, {
-        x,
-        y,
-        z: 0, // No additional tilt here - tilt is handled by parent group
-        duration: 1.5,
-        ease: 'power2.inOut',
-      });
+  // Handle coordinate-based positioning - always rotate from the default Greenwich position
+  useEffect(() => {
+    if (earthGroupRef.current && coords && coords[0] && coords[1]) {
+      const lat = -parseFloat(coords[0]);
+      const lng = -parseFloat(coords[1]);
+      
+      // Only process valid coordinates
+      if (!isNaN(lat) && !isNaN(lng)) {
+        // Convert to radians
+        const latRad = THREE.MathUtils.degToRad(lat);
+        const lngRad = THREE.MathUtils.degToRad(lng);
+
+        // Calculate absolute rotation from Greenwich reference
+        // Start from Greenwich position (-90° Y rotation) and adjust
+        const baseRotationY = THREE.MathUtils.degToRad(-90);
+        const finalRotationY = baseRotationY - lngRad; // Subtract longitude to rotate east
+        const finalRotationX = -latRad; // Negative latitude to tilt north up
+
+        // Animate to the new rotation
+        gsap.to(earthGroupRef.current.rotation, {
+          x: finalRotationX,
+          y: finalRotationY,
+          z: 0,
+          duration: 1.5,
+          ease: 'power2.inOut',
+          // Ensure GSAP always animates to the new target
+          overwrite: true, 
+        });
+      }
     }
   }, [coords]);
 
@@ -128,13 +126,11 @@ const EarthModel = ({ coords }: Props) => {
 
   return (
     <>
-      {/* Ambient light for general illumination */}
       <ambientLight intensity={0.1} />
-      {/* Directional light (sun) */}
       <directionalLight position={sunDir} intensity={5.0} />
-      {/* Earth's axial tilt group - LOCKED, never changes */}
+      {/* Axial tilt group - applied first */}
       <group ref={tiltGroupRef}>
-        {/* Earth rotation group - rotates based on coordinates */}
+        {/* Earth rotation group - rotates around tilted axis */}
         <group ref={earthGroupRef}>
           <mesh ref={earthMeshRef} geometry={geometry} material={earthMaterial} />
           <mesh ref={cloudsMeshRef} geometry={geometry} material={cloudsMaterial} scale={1.003} />
@@ -157,14 +153,13 @@ const EarthScene = ({ coords }: Props) => {
         outputColorSpace: THREE.LinearSRGBColorSpace,
       }}
     >
-      <OrbitControls 
+      <OrbitControls
         enableDamping={true}
         dampingFactor={0.05}
         minDistance={1.5}
         maxDistance={5}
-        // Lock vertical rotation - only allow horizontal rotation
-        minPolarAngle={Math.PI * 0.5} // 90 degrees (horizontal)
-        maxPolarAngle={Math.PI * 0.5} // 90 degrees (horizontal)
+        // Allow full rotation around the tilted Earth
+        enableRotate={true}
       />
       <EarthModel coords={coords} />
     </Canvas>
