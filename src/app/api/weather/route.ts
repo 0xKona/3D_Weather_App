@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 
   try {
     // forward the incoming request's abort signal so callers can cancel the outbound fetch
-    const signal = (req as any).signal;
+    const signal = (req as Request & { signal?: AbortSignal }).signal;
     const res = await fetch(apiUrl, { signal });
 
     // if the upstream service returned an error, capture details and forward status
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
     return NextResponse.json(data);
   } catch (err) {
     // handle client aborts separately (optional - 499 is convention for client closed request)
-    if ((err as any)?.name === 'AbortError') {
+    if (typeof err === 'object' && err !== null && 'name' in err && (err as { name?: string }).name === 'AbortError') {
       return new NextResponse(null, { status: 499 });
     }
     // generic server error

@@ -5,6 +5,8 @@ import LocationInput from "@/components/location-search.tsx/location-input";
 import { useSearchParams } from "next/navigation";
 import React from "react";
 import { getWeatherByLocation } from "./utils/api";
+import { CurrentWeatherResponse } from "@/types/current-weather";
+import WeatherDisplay from "@/components/weather-display.tsx/display";
 
 export default function Home() {
   const searchParams = useSearchParams();
@@ -13,7 +15,7 @@ export default function Home() {
   const locationQuery = searchParams.get('location') ?? 'London';
 
   // data / loading / error state
-  const [data, setData] = React.useState<any | null>(null);
+  const [data, setData] = React.useState<CurrentWeatherResponse | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -49,26 +51,21 @@ export default function Home() {
     };
   }, [locationQuery]);
 
-  function setNewCoords(typeOf: 'lat' | 'lon', newCoords: string) {
-    setCoords((prevState) => {
-      if (typeOf === 'lat') return [newCoords, prevState[1]];
-      if (typeOf === 'lon') return [prevState[0], newCoords];
-      return prevState;
-    })
-  }
-
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20" style={{maxWidth: '100vw'}}>
-      <div style={{ display: 'flex', zIndex: 2, width: '100%'}}>
+    <div className="font-sans relative min-h-screen w-full">
+      <div className="absolute top-[5%] left-1/2 transform -translate-x-1/2 z-20 w-full flex justify-center">
         <LocationInput />
       </div>
 
       {/* optional simple UI to show loading / error / data */}
-      <div style={{ zIndex: 2, width: '100vw' }}>
-        {loading && <div>Loading weather for {locationQuery}…</div>}
-        {error && <div className="text-red-500">Error: {error}</div>}
-        {!loading && !error && data && <pre>{JSON.stringify(data, null, 2)}</pre>}
-      </div>
+      {loading && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">Loading weather for {locationQuery}…</div>}
+      {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 text-red-500">Error: {error}</div>}
+      
+      {!loading && !error && data && (
+        <div className="absolute left-0 top-0 z-1 w-1/3 h-full">
+          <WeatherDisplay data={data}/>
+        </div>
+      )}
 
       <EarthScene coords={coords}/>
     </div>
