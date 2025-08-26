@@ -53,7 +53,7 @@ export default function Home() {
 
   return (
     <div className="font-sans relative min-h-screen w-full">
-      <div className="absolute top-[5%] left-1/2 transform -translate-x-1/2 z-20 w-full flex justify-center">
+      <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-300 flex justify-center p-16">
         <LocationInput />
       </div>
 
