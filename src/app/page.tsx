@@ -2,7 +2,7 @@
 
 import EarthScene from "@/components/earth-scene";
 import LocationInput from "@/components/location-search.tsx/location-input";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import React from "react";
 import { getWeatherByLocation } from "../utils/api";
 import { CurrentWeatherResponse } from "@/types/current-weather";
@@ -10,6 +10,14 @@ import WeatherDisplay from "@/components/weather-display.tsx/display";
 
 export default function Home() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Check if location param exists, if not redirect to default
+  React.useEffect(() => {
+    if (!searchParams.get('location')) {
+      router.replace('/?location=London');
+    }
+  }, [searchParams, router]);
 
   // derive location directly from search params (default fallback)
   const locationQuery = searchParams.get('location') ?? 'London';
