@@ -7,7 +7,6 @@ import { Canvas } from '@react-three/fiber';
 import { vertexShader } from './shaders/vertex';
 import { fragmentShader } from './shaders/fragment';
 import gsap from 'gsap';
-import { OrbitControls } from '@react-three/drei';
 
 interface Props {
   coords: [string, string];

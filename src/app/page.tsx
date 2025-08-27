@@ -65,7 +65,6 @@ export default function Home() {
         <LocationInput />
       </div>
 
-      {/* optional simple UI to show loading / error / data */}
       {loading && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">Loading weather for {locationQuery}…</div>}
       {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 text-red-500">Error: {error}</div>}
       
