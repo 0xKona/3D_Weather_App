@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { getImageByRegion } from '@/app/utils/api';
+import { getImageByRegion } from '@/utils/api';
 import { CurrentWeatherResponse } from '@/types/current-weather';
 import CurrentWeatherCard from './current';
 

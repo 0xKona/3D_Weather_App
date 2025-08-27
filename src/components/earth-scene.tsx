@@ -7,6 +7,7 @@ import { Canvas } from '@react-three/fiber';
 import { vertexShader } from './shaders/vertex';
 import { fragmentShader } from './shaders/fragment';
 import gsap from 'gsap';
+import { OrbitControls } from '@react-three/drei';
 
 interface Props {
   coords: [string, string];
@@ -20,6 +21,7 @@ const EarthModel = ({ coords }: Props) => {
   const cloudsMeshRef = useRef<THREE.Mesh>(null);
   const earthMeshRef = useRef<THREE.Mesh>(null);
   const starsRef = useRef<THREE.Points>(null);
+  const pinpointRef = useRef<THREE.Mesh>(null);
 
   // Load textures
   const earthMap = useLoader(THREE.TextureLoader, './textures/8081_earthmap10k.jpg');
@@ -81,6 +83,42 @@ const EarthModel = ({ coords }: Props) => {
     starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
     starsGeometry.setAttribute('size', new THREE.Float32BufferAttribute(starsSizes, 1));
   }, [starsGeometry]);
+
+  // Create pinpoint geometry and material
+  const pinpointGeometry = useMemo(() => new THREE.SphereGeometry(0.015, 16, 16), []);
+  const pinpointMaterial = useMemo(() => new THREE.MeshLambertMaterial({
+    color: 0xff4444,
+    transparent: true,
+    opacity: 0.9,
+    emissive: 0xff2222,
+    emissiveIntensity: 0.5,
+  }), []);
+
+  // Function to convert lat/lng to 3D position on sphere
+  const latLngToVector3 = (lat: number, lng: number, radius: number = 1.005) => {
+    const phi = (90 - lat) * (Math.PI / 180);
+    const theta = (lng + 180) * (Math.PI / 180);
+    
+    const x = -(radius * Math.sin(phi) * Math.cos(theta));
+    const z = (radius * Math.sin(phi) * Math.sin(theta));
+    const y = (radius * Math.cos(phi));
+    
+    return new THREE.Vector3(x, y, z);
+  };
+
+  // Position pinpoint based on coordinates
+  useEffect(() => {
+    if (pinpointRef.current && coords && coords[0] && coords[1]) {
+      const lat = parseFloat(coords[0]);
+      const lng = parseFloat(coords[1]);
+      
+      if (!isNaN(lat) && !isNaN(lng)) {
+        const position = latLngToVector3(lat, lng);
+        pinpointRef.current.position.copy(position);
+        pinpointRef.current.visible = true;
+      }
+    }
+  }, [coords]);
 
   const geometry = new THREE.SphereGeometry(1, 128, 96);
 
@@ -160,7 +198,7 @@ const EarthModel = ({ coords }: Props) => {
   }, [coords]);
 
   // Animate clouds and stars
-  useFrame(() => {
+  useFrame((state) => {
     if (cloudsMeshRef.current) {
       cloudsMeshRef.current.rotation.y += 0.00005;
     }
@@ -168,6 +206,12 @@ const EarthModel = ({ coords }: Props) => {
     if (starsRef.current) {
       starsRef.current.rotation.x += 0.0001;
       starsRef.current.rotation.y += 0.0002;
+    }
+    // Animate pinpoint with subtle pulsing
+    if (pinpointRef.current && pinpointRef.current.visible) {
+      const time = state.clock.getElapsedTime();
+      const scale = 0.55 + Math.sin(time * 1) * 0.1;
+      pinpointRef.current.scale.setScalar(scale);
     }
   });
 
@@ -185,6 +229,8 @@ const EarthModel = ({ coords }: Props) => {
           <mesh ref={earthMeshRef} geometry={geometry} material={earthMaterial} />
           <mesh ref={cloudsMeshRef} geometry={geometry} material={cloudsMaterial} scale={1.003} />
           <mesh geometry={geometry} material={fresnelMaterial} scale={1.01} />
+          {/* Pinpoint marker for searched location */}
+          <mesh ref={pinpointRef} geometry={pinpointGeometry} material={pinpointMaterial} visible={false} />
         </group>
       </group>
     </>

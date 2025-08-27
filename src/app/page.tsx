@@ -4,7 +4,7 @@ import EarthScene from "@/components/earth-scene";
 import LocationInput from "@/components/location-search.tsx/location-input";
 import { useSearchParams } from "next/navigation";
 import React from "react";
-import { getWeatherByLocation } from "./utils/api";
+import { getWeatherByLocation } from "../utils/api";
 import { CurrentWeatherResponse } from "@/types/current-weather";
 import WeatherDisplay from "@/components/weather-display.tsx/display";
 
