@@ -1,6 +1,6 @@
 'use client'
 
-import EarthScene from "@/components/scenes/earth-scene";
+import EarthScene2 from "@/components/scenes/earth-scene-2";
 import LocationInput from "@/components/location-search.tsx/location-input";
 import { useSearchParams, useRouter } from "next/navigation";
 import React from "react";
@@ -29,6 +29,12 @@ export default function Home() {
   const [error, setError] = React.useState<string | null>(null);
 
   const [coords, setCoords] = React.useState<[string, string]>(['0', '0'])
+
+  // Handle location selection from earth double-click
+  const handleLocationSelect = (lat: number, lng: number) => {
+    const newLocation = `${lat},${lng}`;
+    router.push(`/?location=${encodeURIComponent(newLocation)}`);
+  };
 
   // fetch when locationQuery changes; use AbortController to avoid races
   React.useEffect(() => {
@@ -67,7 +73,7 @@ export default function Home() {
       
       {/* Earth scene - middle layer */}
       <div className="absolute top-0 left-0 w-full h-full z-10">
-        <EarthScene coords={coords}/>
+        <EarthScene2 coords={coords} onLocationSelect={handleLocationSelect}/>
       </div>
 
       {/* UI elements - highest z-index */}
