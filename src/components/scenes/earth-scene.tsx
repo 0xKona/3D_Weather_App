@@ -4,8 +4,8 @@ import { useFrame, useLoader } from '@react-three/fiber';
 import { useRef, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
-import { vertexShader } from './shaders/vertex';
-import { fragmentShader } from './shaders/fragment';
+import { vertexShader } from '../shaders/vertex';
+import { fragmentShader } from '../shaders/fragment';
 import gsap from 'gsap';
 
 interface Props {
@@ -19,7 +19,6 @@ const EarthModel = ({ coords }: Props) => {
   const earthGroupRef = useRef<THREE.Group>(null);
   const cloudsMeshRef = useRef<THREE.Mesh>(null);
   const earthMeshRef = useRef<THREE.Mesh>(null);
-  const starsRef = useRef<THREE.Points>(null);
   const pinpointRef = useRef<THREE.Mesh>(null);
 
   // Load textures
@@ -41,47 +40,6 @@ const EarthModel = ({ coords }: Props) => {
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     });
   }, [earthMap, earthSpec, earthBump, earthLights, earthClouds]);
-
-  // Create stars geometry and material
-  const starsGeometry = useMemo(() => new THREE.BufferGeometry(), []);
-  const starsMaterial = useMemo(() => new THREE.PointsMaterial({
-    color: 0xffffff,
-    size: 2,
-    sizeAttenuation: false,
-    transparent: true,
-    opacity: 0.8,
-  }), []);
-
-  // Create starfield with different sized stars for depth
-  useEffect(() => {
-    const starsVertices = [];
-    const starsColors = [];
-    const starsSizes = [];
-    
-    for (let i = 0; i < 15000; i++) {
-      // Create stars in a large sphere around the scene
-      const radius = 1000;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      
-      const x = radius * Math.sin(phi) * Math.cos(theta);
-      const y = radius * Math.sin(phi) * Math.sin(theta);
-      const z = radius * Math.cos(phi);
-      
-      starsVertices.push(x, y, z);
-      
-      // Vary star colors slightly (white to blue-white)
-      const colorVariation = 0.7 + Math.random() * 0.3;
-      starsColors.push(colorVariation, colorVariation, 1.0);
-      
-      // Vary star sizes for depth effect
-      starsSizes.push(Math.random() * 2 + 0.5);
-    }
-    
-    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
-    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
-    starsGeometry.setAttribute('size', new THREE.Float32BufferAttribute(starsSizes, 1));
-  }, [starsGeometry]);
 
   // Create pinpoint geometry and material
   const pinpointGeometry = useMemo(() => new THREE.SphereGeometry(0.015, 16, 16), []);
@@ -201,11 +159,7 @@ const EarthModel = ({ coords }: Props) => {
     if (cloudsMeshRef.current) {
       cloudsMeshRef.current.rotation.y += 0.00005;
     }
-    // Slowly rotate stars for subtle movement
-    if (starsRef.current) {
-      starsRef.current.rotation.x += 0.0001;
-      starsRef.current.rotation.y += 0.0002;
-    }
+    
     // Animate pinpoint with subtle pulsing
     if (pinpointRef.current && pinpointRef.current.visible) {
       const time = state.clock.getElapsedTime();
@@ -216,9 +170,6 @@ const EarthModel = ({ coords }: Props) => {
 
   return (
     <>
-      {/* Starfield background */}
-      <points ref={starsRef} geometry={starsGeometry} material={starsMaterial} />
-      
       <ambientLight intensity={0.8} />
       <directionalLight position={sunDir} intensity={5} />
       {/* Axial tilt group - applied first */}
@@ -240,8 +191,7 @@ const EarthScene = ({ coords }: Props) => {
   return (
     <Canvas
       camera={{ position: [0, 0, 2], fov: 75 }}
-      className="absolute top-0 left-0 w-full h-full z-0 overflow-hidden"
-      style={{ width: '100vw', height: '100vh', position: 'absolute' }}
+      className="w-full h-full"
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,

@@ -1,12 +1,13 @@
 'use client'
 
-import EarthScene from "@/components/earth-scene";
+import EarthScene from "@/components/scenes/earth-scene";
 import LocationInput from "@/components/location-search.tsx/location-input";
 import { useSearchParams, useRouter } from "next/navigation";
 import React from "react";
 import { getWeatherByLocation } from "../utils/api";
 import { CurrentWeatherResponse } from "@/types/current-weather";
 import WeatherDisplay from "@/components/weather-display.tsx/display";
+import StarsScene from "@/components/scenes/stars";
 
 export default function Home() {
   const searchParams = useSearchParams();
@@ -61,20 +62,27 @@ export default function Home() {
 
   return (
     <div className="font-sans relative min-h-screen w-full">
+      {/* Stars background - lowest z-index */}
+      <StarsScene />
+      
+      {/* Earth scene - middle layer */}
+      <div className="absolute top-0 left-0 w-full h-full z-10">
+        <EarthScene coords={coords}/>
+      </div>
+
+      {/* UI elements - highest z-index */}
       <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-300 flex justify-center p-16">
         <LocationInput />
       </div>
 
-      {loading && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">Loading weather for {locationQuery}…</div>}
-      {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 text-red-500">Error: {error}</div>}
+      {loading && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">Loading weather for {locationQuery}…</div>}
+      {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 text-red-500">Error: {error}</div>}
       
       {!loading && !error && data && (
-        <div className="absolute left-0 top-0 z-1 w-1/3 h-full">
+        <div className="absolute left-0 top-0 z-30 w-1/3 h-full">
           <WeatherDisplay data={data}/>
         </div>
       )}
-
-      <EarthScene coords={coords}/>
     </div>
   );
 }
