@@ -13,7 +13,7 @@ export default function ForecastDayCard({ day }: Props) {
     const WeatherIcon = (weatherIcons[day.day.condition.code] || TiWeatherSunny) as React.ComponentType<{ size?: number, className: string }>;
 
     return (
-        <div className="flex flex-col items-center p-2 bg-black/10 rounded-lg">
+        <div className="flex flex-col items-center p-2 bg-black/10 rounded-lg border border-white cursor-pointer">
             <p className="text-sm font-medium">{dayName}</p>
             <WeatherIcon size={40} className="my-2" />
             <p className="text-xs">{day.day.condition.text}</p>
