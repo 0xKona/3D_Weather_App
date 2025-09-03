@@ -55,8 +55,7 @@ export default function ForecastWeekDisplay({ setSelectedDay}: Props) {
             isMounted = false;
             controller.abort();
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locationQuery]);
+    }, [locationQuery, setSelectedDay]);
 
     const handleDayClick = (day: ForecastDay) => {
         setSelectedDay(day);
