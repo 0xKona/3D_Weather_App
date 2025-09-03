@@ -1,6 +1,6 @@
 'use client';
 
-import { useFrame, useLoader } from '@react-three/fiber';
+import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import { useRef, useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
@@ -176,6 +176,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
       });
     }
   }, [manualRotation]);
+
   // Handle mouse events for double-click
   const handlePointerDown = (event: { stopPropagation: () => void; point: THREE.Vector3 }) => {
     event.stopPropagation();
@@ -226,7 +227,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
     }
   }, [sunDirection, earthMaterial]);
 
-    // Animate clouds and pinpoint
+  // Animate clouds and pinpoint
   useFrame((state) => {
     if (cloudsMeshRef.current) {
       cloudsMeshRef.current.rotation.y += 0.00005;
@@ -244,6 +245,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
       pinpointRef.current.scale.setScalar(scale);
     }
   });
+
   return (
     <>
       <ambientLight intensity={0.8} />
@@ -265,18 +267,44 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
   );
 };
 
-const EarthScene = ({ coords, onLocationSelect, manualRotation }: Props) => {
+// Component to control camera position based on viewport
+const CameraController = () => {
+  const { camera, viewport } = useThree();
 
+  useEffect(() => {
+    const radius = 1; // Earth radius
+    const fovRad = THREE.MathUtils.degToRad(75); // Camera FOV
+    const aspect = viewport.width / viewport.height;
+
+    // Calculate vertical FOV
+    const fovY = 2 * Math.atan(Math.tan(fovRad / 2) / aspect);
+    const distanceVertical = radius / Math.sin(fovY / 2);
+
+    // Calculate horizontal FOV
+    const fovX = 2 * Math.atan(Math.tan(fovRad / 2) * aspect);
+    const distanceHorizontal = radius / Math.sin(fovX / 2);
+
+    // Use the larger distance to ensure Earth fits in both directions
+    const distance = Math.max(distanceVertical, distanceHorizontal);
+
+    camera.position.set(0, 0, distance);
+    camera.updateProjectionMatrix();
+  }, [camera, viewport]);
+
+  return null;
+};
+
+const EarthScene = ({ coords, onLocationSelect, manualRotation }: Props) => {
   return (
     <Canvas
-      camera={{ position: [0, 0, 2], fov: 75 }}
-      className="w-full h-full"
+      camera={{ fov: 75 }}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
         toneMappingExposure: 0.5,
       }}
     >
+      <CameraController />
       <EarthModel coords={coords} onLocationSelect={onLocationSelect} manualRotation={manualRotation} />
     </Canvas>
   );

@@ -88,41 +88,44 @@ export default function Home() {
   }, [coords]);
 
   return (
-    <div className="font-sans relative min-h-screen w-full">
-      {/* Stars background - lowest z-index, covering whole page */}
-      <StarsScene />
-      
-      {/* Main grid layout */}
-      <div className="grid grid-cols-1 md:grid-cols-3 min-h-screen relative z-10">
-        {/* Weather Display - left column, 1/3 on desktop */}
-        <div className="md:col-span-1 p-4">
-          <WeatherDisplay data={data} loading={loading} error={error} />
-        </div>
-      
+    <>
+      <div className="font-sans relative min-h-screen w-full">
+        {/* Stars background - lowest z-index, covering whole page */}
+        <StarsScene />
         
-        {/* Earth scene and controls - right columns, 2/3 on desktop */}
-        <div className="md:col-span-2 relative">
-          {/* Earth scene */}
-          <div className="absolute inset-0">
-            <EarthScene coords={coords} onLocationSelect={handleLocationSelect} manualRotation={manualRotation}/>
+        {/* Main grid layout */}
+        <div className="grid grid-cols-1 md:grid-cols-10 min-h-screen relative z-10">
+          {/* Weather Display - left column, 1/3 on desktop */}
+          <div className="md:col-span-4">
+            <WeatherDisplay data={data} loading={loading} error={error} />
           </div>
+        
           
-          {/* UI elements */}
-          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16">
-            <LocationInput />
+          {/* Earth scene and controls - right columns, 2/3 on desktop */}
+          <div className="md:col-span-5 relative">
+            {/* Earth scene */}
+            <div className="absolute inset-0">
+              <EarthScene coords={coords} onLocationSelect={handleLocationSelect} manualRotation={manualRotation}/>
+            </div>
+            
+            {/* UI elements */}
+            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16">
+              <LocationInput />
+            </div>
+            
+            {/* Manual rotation controls */}
+            <EarthControls 
+              manualRotation={manualRotation}
+              setManualRotation={setManualRotation}
+            />
+            
+            {/* Loading and error messages */}
+            {loading && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">Loading weather for {locationQuery}…</div>}
+            {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 text-red-500">Error: {error}</div>}
           </div>
-          
-          {/* Manual rotation controls */}
-          <EarthControls 
-            manualRotation={manualRotation}
-            setManualRotation={setManualRotation}
-          />
-          
-          {/* Loading and error messages */}
-          {loading && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">Loading weather for {locationQuery}…</div>}
-          {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 text-red-500">Error: {error}</div>}
         </div>
       </div>
-    </div>
+      
+    </>
   );
 }
