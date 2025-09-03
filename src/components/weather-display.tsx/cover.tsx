@@ -21,7 +21,7 @@ export default function CoverImage({ data }: Props) {
     const { location, current } = data;
     const { name, region } = location;
 
-    const place = `${name}, ${region}`
+    const place = `${name}, ${region}`;
 
     getImageByRegion(place, 1)
       .then((images: string[]) => {
