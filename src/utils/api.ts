@@ -29,6 +29,5 @@ export async function getImageByRegion(place: string, limit: number = 1) {
   };
 
   const data = await res.json();
-  console.log('Image Data Res: ', data);
   return data;
 }
