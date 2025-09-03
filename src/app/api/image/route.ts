@@ -1,58 +1,61 @@
 import { NextResponse } from 'next/server';
 
 /**
- * GET /api/image?place=City%20of%20London&limit=3
+ * GET /api/image?place=City%20of%20London
  *
- * Returns high-resolution Wikimedia Commons images for a given place.
+ * Returns high-resolution Pixabay images for a given place.
+ * Requires PIXABAY_API_KEY environment variable.
  */
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const place = url.searchParams.get('place');
-    const rawLimit = url.searchParams.get('limit');
 
     if (!place) {
       return NextResponse.json({ error: 'missing "place" query param' }, { status: 400 });
     }
 
-    const limit = Math.min(Math.max(Number(rawLimit) || 3, 1), 20);
+    const limit = 5;
     const TARGET_WIDTH = 1920;
     const TARGET_ASPECT = 16 / 9;
     const TOLERANCE = 0.03;
 
-    const searchTerm = encodeURIComponent(`${place} skyline`);
-    const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${searchTerm}&gsrnamespace=6&gsrlimit=${limit}&prop=imageinfo&iiprop=url|size&format=json&origin=*`;
+    const searchTerm = encodeURIComponent(`${place}`);
+    const apiKey = process.env.PIXABAY_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'PIXABAY_API_KEY not configured' }, { status: 500 });
+    }
 
+    const apiUrl = `https://pixabay.com/api/?key=${apiKey}&q=${searchTerm}&image_type=photo&per_page=${limit}&safesearch=true`;
     const res = await fetch(apiUrl);
-    if (!res.ok) throw new Error(`Wikimedia API ${res.status}`);
+    if (!res.ok) throw new Error(`Pixabay API ${res.status}`);
 
     const data = await res.json();
-    if (!data.query?.pages) return NextResponse.json([], { status: 200 });
+    if (!data.hits || data.hits.length === 0) return NextResponse.json([], { status: 200 });
 
+    interface PixabayImage {
+      largeImageURL: string;
+      webformatWidth: number;
+      webformatHeight: number;
+    }
+
+    const images = data.hits.map((hit: PixabayImage) => ({
+      url: hit.largeImageURL,
+      width: hit.webformatWidth,
+      height: hit.webformatHeight,
+    }));
+
+    // Prefer close to 1920x1080 -> close 16:9 -> any
     interface ImageInfo {
       url: string;
       width: number;
       height: number;
     }
 
-    type WikimediaPage = {
-      imageinfo?: ImageInfo[];
-      [key: string]: unknown;
-    };
+    const exact: ImageInfo[] = images.filter((i: ImageInfo) => i.width >= TARGET_WIDTH && Math.abs((i.width / i.height) - TARGET_ASPECT) < TOLERANCE);
+    const close = exact.length ? exact : images.filter((i: ImageInfo) => Math.abs((i.width / i.height) - TARGET_ASPECT) < TOLERANCE);
 
-    const images = Object.values(data.query.pages as Record<string, WikimediaPage>)
-      .map((p) => p.imageinfo?.[0] as ImageInfo | undefined)
-      .filter((i): i is ImageInfo => !!i)
-      .map((i) => ({
-        url: i.url,
-        width: i.width,
-        height: i.height,
-      }));
-
-    // Prefer 1920x1080 -> close 16:9 -> any
-    const exact = images.filter(i => i.width === TARGET_WIDTH && Math.abs((i.width/i.height)-TARGET_ASPECT) < TOLERANCE);
-    const close = exact.length ? exact : images.filter(i => Math.abs((i.width/i.height)-TARGET_ASPECT) < TOLERANCE);
-    const chosen = (close.length ? close : images).slice(0, limit).map(i => i.url);
+    const chosen: string[] = (close.length ? close : images).slice(0, limit).map((i: ImageInfo) => i.url);
 
     return NextResponse.json(chosen, { status: 200 });
   } catch (err) {
