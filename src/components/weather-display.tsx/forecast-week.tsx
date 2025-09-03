@@ -25,7 +25,7 @@ export default function ForecastWeekDisplay({ setSelectedDay}: Props) {
             setLoading(true);
             setError(null);
             try {
-                const result = await getForecastByLocation(locationQuery, 7, { signal: controller.signal });
+                const result = await getForecastByLocation(locationQuery, 3, { signal: controller.signal });
                 if (isMounted) {
                     setData(result as ForecastResponse); // Type assertion for the API response
                     // By default, select the first forecast day
