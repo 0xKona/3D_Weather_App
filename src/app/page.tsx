@@ -3,7 +3,7 @@
 import EarthScene from "@/components/scenes/earth-scene";
 import LocationInput from "@/components/location-search.tsx/location-input";
 import { useSearchParams, useRouter } from "next/navigation";
-import React from "react";
+import React, { Suspense } from "react";
 import { getWeatherByLocation } from "../utils/api";
 import { CurrentWeatherResponse } from "@/types/current-weather";
 import WeatherDisplay from "@/components/weather-display.tsx/display";
@@ -12,7 +12,7 @@ import EarthControls from "@/components/scenes/earth-controls";
 import { EarthView } from "@/types/manual-rotation";
 import Footer from "@/components/footer/footer";
 
-export default function Home() {
+function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -95,7 +95,7 @@ export default function Home() {
         <StarsScene />
         
         {/* Location Input for mobile - at top */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16 md:hidden">
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16 block md:hidden">
           <LocationInput />
         </div>
         
@@ -132,5 +132,13 @@ export default function Home() {
       </div>
       <Footer />
     </>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }
