@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     const TARGET_ASPECT = 16 / 9;
     const TOLERANCE = 0.03;
 
-    const searchTerm = encodeURIComponent(`${place}`);
+    const searchTerm = encodeURIComponent(`${place} skyline`);
     const apiKey = process.env.PIXABAY_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: 'PIXABAY_API_KEY not configured' }, { status: 500 });
