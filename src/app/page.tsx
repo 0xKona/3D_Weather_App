@@ -10,6 +10,7 @@ import WeatherDisplay from "@/components/weather-display.tsx/display";
 import StarsScene from "@/components/scenes/stars";
 import EarthControls from "@/components/scenes/earth-controls";
 import { EarthView } from "@/types/manual-rotation";
+import Footer from "@/components/footer/footer";
 
 export default function Home() {
   const searchParams = useSearchParams();
@@ -125,7 +126,7 @@ export default function Home() {
           </div>
         </div>
       </div>
-      
+      <Footer />
     </>
   );
 }
