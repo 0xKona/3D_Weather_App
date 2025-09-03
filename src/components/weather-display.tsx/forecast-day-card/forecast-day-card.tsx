@@ -10,7 +10,7 @@ export default function ForecastDayCard({ day }: Props) {
 
     const date = new Date(day.date);
     const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-    const WeatherIcon = (weatherIcons[day.day.condition.code] || TiWeatherSunny) as React.ComponentType<{ size?: number, className: string }>;;
+    const WeatherIcon = (weatherIcons[day.day.condition.code] || TiWeatherSunny) as React.ComponentType<{ size?: number, className: string }>;
 
     return (
         <div className="flex flex-col items-center p-2 bg-black/10 rounded-lg">
