@@ -17,15 +17,18 @@ export default function ForecastWeekDisplay({ setSelectedDay}: Props) {
     const [loading, setLoading] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
 
+    const daysToRequest = 3;
+
     React.useEffect(() => {
         let isMounted = true;
         const controller = new AbortController();
+
 
         const fetchForecast = async () => {
             setLoading(true);
             setError(null);
             try {
-                const result = await getForecastByLocation(locationQuery, 3, { signal: controller.signal });
+                const result = await getForecastByLocation(locationQuery, daysToRequest, { signal: controller.signal });
                 if (isMounted) {
                     setData(result as ForecastResponse); // Type assertion for the API response
                     // By default, select the first forecast day
@@ -90,7 +93,7 @@ export default function ForecastWeekDisplay({ setSelectedDay}: Props) {
 
     return (
         <div className="card w-full bg-black/20 backdrop-blur-sm rounded-lg p-4 text-white shadow-xl">
-            <h3 className="text-lg font-semibold mb-4">3-Day Forecast</h3>
+            <h3 className="text-lg font-semibold mb-4">{`${daysToRequest}-Day Forecast`}</h3>
             <div className="grid grid-cols-3 gap-4 mb-6">
                 {forecastDays.map((day: ForecastDay, index: number) => (
                     <div onClick={() => handleDayClick(day)} key={index}>
