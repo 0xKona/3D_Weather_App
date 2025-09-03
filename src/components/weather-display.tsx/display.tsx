@@ -1,5 +1,6 @@
 import { CurrentWeatherResponse } from "@/types/current-weather";
 import CoverImage from "./cover";
+import CurrentWeatherCard from "./current";
 
 interface Props {
     data: CurrentWeatherResponse;
@@ -9,11 +10,10 @@ export default function WeatherDisplay({ data }: Props) {
   if (!data) return null;
   const { location, current } = data;
   return (
-    <div className="flex flex-col w-full h-screen p-16">
-      <div className="flex-shrink-0 mb-4">
-        <CoverImage data={data} />
-      </div>
-
+    <div className="flex flex-col w-full h-screen p-16 bg-transparent">
+      <CoverImage data={data} />
+      <CurrentWeatherCard data={data} />
+      
       {/* Detailed Weather Data Card */}
       <div className="card flex-1 shadow-xl overflow-y-auto  bg-black/50 backdrop-blur-sm rounded-lg p-4 text-white">
         <div className="card-body">
