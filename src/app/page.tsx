@@ -51,7 +51,7 @@ export default function Home() {
       setError(null);
       try {
         const result = await getWeatherByLocation(locationQuery, { signal });
-        if (signal.aborted) return; // ignore if aborted
+        if (signal.aborted) return;
         setCoords([result.location.lat.toString(), result.location.lon.toString()])
         setData(result);
       } catch (err) {
@@ -59,7 +59,6 @@ export default function Home() {
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
         setData(null);
-        // optional: console.error(err);
       } finally {
         if (!signal.aborted) setLoading(false);
       }
@@ -90,33 +89,40 @@ export default function Home() {
 
   return (
     <div className="font-sans relative min-h-screen w-full">
-      {/* Stars background - lowest z-index */}
+      {/* Stars background - lowest z-index, covering whole page */}
       <StarsScene />
       
-      {/* Earth scene - middle layer */}
-      <div className="absolute top-0 left-0 w-full h-full z-10">
-        <EarthScene coords={coords} onLocationSelect={handleLocationSelect} manualRotation={manualRotation}/>
-      </div>
-
-      {/* UI elements - highest z-index */}
-      <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16">
-        <LocationInput />
-      </div>
-
-      {/* Manual rotation controls */}
-      <EarthControls 
-        manualRotation={manualRotation}
-        setManualRotation={setManualRotation}
-      />
-
-      {loading && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">Loading weather for {locationQuery}…</div>}
-      {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 text-red-500">Error: {error}</div>}
-      
-      {!loading && !error && data && (
-        <div className="absolute left-0 top-0 z-30 w-1/3 h-full">
-          <WeatherDisplay data={data} />
+      {/* Main grid layout */}
+      <div className="grid grid-cols-1 md:grid-cols-3 min-h-screen relative z-10">
+        {/* Weather Display - left column, 1/3 on desktop */}
+        <div className="md:col-span-1 p-4">
+          <WeatherDisplay data={data} loading={loading} error={error} />
         </div>
-      )}
+      
+        
+        {/* Earth scene and controls - right columns, 2/3 on desktop */}
+        <div className="md:col-span-2 relative">
+          {/* Earth scene */}
+          <div className="absolute inset-0">
+            <EarthScene coords={coords} onLocationSelect={handleLocationSelect} manualRotation={manualRotation}/>
+          </div>
+          
+          {/* UI elements */}
+          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16">
+            <LocationInput />
+          </div>
+          
+          {/* Manual rotation controls */}
+          <EarthControls 
+            manualRotation={manualRotation}
+            setManualRotation={setManualRotation}
+          />
+          
+          {/* Loading and error messages */}
+          {loading && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">Loading weather for {locationQuery}…</div>}
+          {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 text-red-500">Error: {error}</div>}
+        </div>
+      </div>
     </div>
   );
 }
