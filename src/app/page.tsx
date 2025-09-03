@@ -114,7 +114,7 @@ export default function Home() {
       
       {!loading && !error && data && (
         <div className="absolute left-0 top-0 z-30 w-1/3 h-full">
-          <WeatherDisplay data={data}/>
+          <WeatherDisplay data={data} />
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { CurrentWeatherResponse } from "@/types/current-weather";
 import CoverImage from "./cover";
 import CurrentWeatherCard from "./current";
+import ForecastWeekDisplay from "./forecast-week";
 
 interface Props {
     data: CurrentWeatherResponse;
@@ -13,6 +14,7 @@ export default function WeatherDisplay({ data }: Props) {
     <div className="flex flex-col w-full h-screen p-16 bg-transparent">
       <CoverImage data={data} />
       <CurrentWeatherCard data={data} />
+      <ForecastWeekDisplay />
       
       {/* Detailed Weather Data Card */}
       <div className="card flex-1 shadow-xl overflow-y-auto  bg-black/50 backdrop-blur-sm rounded-lg p-4 text-white">
