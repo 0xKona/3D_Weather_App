@@ -175,7 +175,8 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
         overwrite: true,
       });
     }
-  }, [manualRotation]);    // Handle mouse events for double-click
+  }, [manualRotation]);
+  // Handle mouse events for double-click
   const handlePointerDown = (event: { stopPropagation: () => void; point: THREE.Vector3 }) => {
     event.stopPropagation();
 
