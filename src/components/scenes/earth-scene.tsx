@@ -243,7 +243,8 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
       const scale = 0.55 + Math.sin(time * 1) * 0.1;
       pinpointRef.current.scale.setScalar(scale);
     }
-  });  return (
+  });
+  return (
     <>
       <ambientLight intensity={0.8} />
       <directionalLight position={[10, 8, 0]} intensity={5} />
