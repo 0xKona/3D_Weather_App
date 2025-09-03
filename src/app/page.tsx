@@ -99,7 +99,7 @@ export default function Home() {
       </div>
 
       {/* UI elements - highest z-index */}
-      <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-300 flex justify-center p-16">
+      <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16">
         <LocationInput />
       </div>
 
