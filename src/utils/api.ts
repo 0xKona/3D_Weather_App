@@ -15,12 +15,26 @@ export async function getWeatherByLocation(location: string, opts?: { signal?: A
   return data as CurrentWeatherResponse;
 };
 
-export async function getImageByRegion(place: string, limit: number = 1) {
-  // /api/image?region=City%20of%20London&limit=3
-  const p = encodeURIComponent(place);
-  // limit is a number, no need to encode
+export async function getForecastByLocation(location: string, days: number = 3, opts?: { signal?: AbortSignal }) {
+  const q = encodeURIComponent(location);
+  const res = await fetch(`/api/forecast?q=${q}&days=${days}`, { signal: opts?.signal });
 
-  const res = await fetch(`/api/image?place=${p}&limit=${limit}`);
+  if (!res.ok) {
+    // include status/text for easier debugging
+    const body = await res.text().catch(() => '');
+    throw new Error(`Forecast API error: ${res.status} ${res.statusText} ${body}`);
+  }
+
+  const data = await res.json();
+
+  return data; // Return the full forecast response
+};
+
+export async function getImageByRegion(place: string) {
+  // /api/image?region=City%20of%20London
+  const p = encodeURIComponent(place);
+
+  const res = await fetch(`/api/image?place=${p}`);
 
   if (!res.ok) {
     // include status/text for easier debugging
@@ -31,3 +45,4 @@ export async function getImageByRegion(place: string, limit: number = 1) {
   const data = await res.json();
   return data;
 }
+
