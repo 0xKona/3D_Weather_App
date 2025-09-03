@@ -1,7 +1,7 @@
 'use client';
 
 import { useFrame, useLoader } from '@react-three/fiber';
-import { useRef, useEffect, useMemo } from 'react';
+import { useRef, useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { vertexShader } from '../shaders/vertex';
@@ -10,16 +10,37 @@ import gsap from 'gsap';
 
 interface Props {
   coords: [string, string];
+  onLocationSelect?: (lat: number, lng: number) => void;
+  manualRotation?: { lat: number; lng: number };
 }
 
-const EarthModel = ({ coords }: Props) => {
-  const sunDir: [number, number, number] = [10, 8, 0];
+// Function to calculate sun direction based on UTC time
+const getSunDirection = (date: Date): THREE.Vector3 => {
+  // Get UTC time in hours (0-23.99)
+  const utcHours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+  
+  // Convert to angle (sun rises at 6 AM UTC, sets at 6 PM UTC)
+  const sunAngle = ((utcHours - 6) / 12) * Math.PI; // -π/2 to π/2
+  
+  // Sun direction vector (simplified - sun moves from east to west)
+  const sunX = Math.sin(sunAngle);
+  const sunY = Math.cos(sunAngle);
+  const sunZ = 0; // No north-south movement for simplicity
+  
+  return new THREE.Vector3(sunX, sunY, sunZ).normalize();
+};
+
+const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
+  const clickCount = useRef(0);
+  const clickTimer = useRef<NodeJS.Timeout | null>(null);
 
   const tiltGroupRef = useRef<THREE.Group>(null);
   const earthGroupRef = useRef<THREE.Group>(null);
   const cloudsMeshRef = useRef<THREE.Mesh>(null);
   const earthMeshRef = useRef<THREE.Mesh>(null);
   const pinpointRef = useRef<THREE.Mesh>(null);
+
+  const [sunDirection, setSunDirection] = useState(getSunDirection(new Date()));
 
   // Load textures
   const earthMap = useLoader(THREE.TextureLoader, './textures/8081_earthmap10k.jpg');
@@ -53,14 +74,33 @@ const EarthModel = ({ coords }: Props) => {
 
   // Function to convert lat/lng to 3D position on sphere
   const latLngToVector3 = (lat: number, lng: number, radius: number = 1.005) => {
-    const phi = (90 - lat) * (Math.PI / 180);
-    const theta = (lng + 180) * (Math.PI / 180);
-    
+    const phi = (90 - lat) * (Math.PI / 180); // latitude angle from north pole
+    const theta = (lng + 180) * (Math.PI / 180); // longitude angle, offset by 180°
+
     const x = -(radius * Math.sin(phi) * Math.cos(theta));
     const z = (radius * Math.sin(phi) * Math.sin(theta));
     const y = (radius * Math.cos(phi));
-    
+
     return new THREE.Vector3(x, y, z);
+  };
+
+  // Function to convert 3D position to lat/lng
+  const vector3ToLatLng = (position: THREE.Vector3) => {
+    const radius = position.length();
+    const phi = Math.acos(position.y / radius); // angle from north pole
+    const lat = 90 - (phi * 180 / Math.PI);
+
+    // Calculate theta from x-z plane
+    const theta = Math.atan2(position.z, -position.x); // angle in x-z plane
+
+    // Convert theta back to longitude
+    let lng = (theta * 180 / Math.PI) - 180;
+
+    // Normalize to -180 to 180
+    if (lng > 180) lng -= 360;
+    if (lng < -180) lng += 360;
+
+    return { lat, lng };
   };
 
   // Position pinpoint based on coordinates
@@ -68,7 +108,7 @@ const EarthModel = ({ coords }: Props) => {
     if (pinpointRef.current && coords && coords[0] && coords[1]) {
       const lat = parseFloat(coords[0]);
       const lng = parseFloat(coords[1]);
-      
+
       if (!isNaN(lat) && !isNaN(lng)) {
         const position = latLngToVector3(lat, lng);
         pinpointRef.current.position.copy(position);
@@ -79,19 +119,19 @@ const EarthModel = ({ coords }: Props) => {
 
   const geometry = new THREE.SphereGeometry(1, 128, 96);
 
-  const earthMaterial = new THREE.ShaderMaterial({
+  const earthMaterial = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {
       dayTexture: { value: earthMap },
       nightTexture: { value: earthLights },
       specularMap: { value: earthSpec },
       bumpMap: { value: earthBump },
       bumpScale: { value: 0.04 },
-      sunDirection: { value: new THREE.Vector3(...sunDir).normalize() },
-      emissionStrength: { value: 0.8 }, // Add emission strength control
+      sunDirection: { value: sunDirection },
+      emissionStrength: { value: 0.8 },
     },
     vertexShader: vertexShader,
     fragmentShader: fragmentShader,
-  });
+  }), [earthMap, earthLights, earthSpec, earthBump, sunDirection]);
 
   const cloudsMaterial = new THREE.MeshBasicMaterial({
     map: earthClouds,
@@ -106,80 +146,116 @@ const EarthModel = ({ coords }: Props) => {
     side: THREE.BackSide,
   });
 
-  // Set Earth's axial tilt (Real is 23.44)
+  // Set Earth's axial tilt
   useEffect(() => {
     if (tiltGroupRef.current) {
-      tiltGroupRef.current.rotation.z = THREE.MathUtils.degToRad(15);
+      tiltGroupRef.current.rotation.z = THREE.MathUtils.degToRad(23.44);
     }
   }, []);
 
-  // Initialize with default rotation to show Greenwich at (0,0)
+  // Initialize with default rotation
   useEffect(() => {
     if (earthGroupRef.current) {
-      // Default rotation to show Greenwich (0°, 0°) at center
-      // The texture has Americas at center by default, rotation needed to show Greenwich
       earthGroupRef.current.rotation.set(0, THREE.MathUtils.degToRad(-90), 0);
     }
   }, []);
 
-  // Handle coordinate-based positioning - always rotate from the default Greenwich position
+  // Handle manual rotation from sliders
   useEffect(() => {
-    if (earthGroupRef.current && coords && coords[0] && coords[1]) {
-      const lat = -parseFloat(coords[0]);
-      const lng = parseFloat(coords[1]);
-      
-      // Only process valid coordinates
-      if (!isNaN(lat) && !isNaN(lng)) {
-        // Convert to radians
-        const latRad = THREE.MathUtils.degToRad(lat);
-        const lngRad = THREE.MathUtils.degToRad(lng);
+    if (earthGroupRef.current && manualRotation) {
+      const latRad = THREE.MathUtils.degToRad(manualRotation.lat);
+      const lngRad = THREE.MathUtils.degToRad(manualRotation.lng);
 
-        // Calculate absolute rotation from Greenwich reference
-        // Start from Greenwich position (-90° Y rotation) and adjust
-        const baseRotationY = THREE.MathUtils.degToRad(-90);
-        const finalRotationY = baseRotationY - lngRad; // Subtract longitude to rotate east
-        const finalRotationX = -latRad; // Negative latitude to tilt north up
+      gsap.to(earthGroupRef.current.rotation, {
+        x: -latRad,
+        y: THREE.MathUtils.degToRad(-90) - lngRad,
+        z: 0,
+        duration: 0.5,
+        ease: 'power2.out',
+        overwrite: true,
+      });
+    }
+  }, [manualRotation]);    // Handle mouse events for double-click
+  const handlePointerDown = (event: { stopPropagation: () => void; point: THREE.Vector3 }) => {
+    event.stopPropagation();
 
-        // Animate to the new rotation
-        gsap.to(earthGroupRef.current.rotation, {
-          x: finalRotationX,
-          y: finalRotationY,
-          z: 0,
-          duration: 1.5,
-          ease: 'power2.inOut',
-          // Ensure GSAP always animates to the new target
-          overwrite: true, 
-        });
+    const point = event.point;
+    if (point && earthMeshRef.current) {
+      clickCount.current += 1;
+
+      if (clickCount.current === 1) {
+        clickTimer.current = setTimeout(() => {
+          clickCount.current = 0;
+        }, 300); // Double-click threshold
+      } else if (clickCount.current === 2) {
+        if (clickTimer.current) {
+          clearTimeout(clickTimer.current);
+        }
+        clickCount.current = 0;
+
+        // Transform the world point to local coordinates of the earth mesh
+        const localPoint = earthMeshRef.current.worldToLocal(point.clone());
+
+        // Get lat/lng from the local intersection point
+        const { lat, lng } = vector3ToLatLng(localPoint);
+
+        console.log('Double-clicked location:', lat, lng, 'World point:', point, 'Local point:', localPoint);
+
+        // Call the callback to update location
+        if (onLocationSelect) {
+          onLocationSelect(lat, lng);
+        }
       }
     }
-  }, [coords]);
+  };
 
-  // Animate clouds and stars
+  // Update sun direction every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSunDirection(getSunDirection(new Date()));
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Update shader uniform when sun direction changes
+  useEffect(() => {
+    if (earthMaterial.uniforms.sunDirection) {
+      earthMaterial.uniforms.sunDirection.value = sunDirection;
+    }
+  }, [sunDirection, earthMaterial]);
+
+    // Animate clouds and pinpoint
   useFrame((state) => {
     if (cloudsMeshRef.current) {
       cloudsMeshRef.current.rotation.y += 0.00005;
     }
-    
-    // Animate pinpoint with subtle pulsing
+
+    // Only auto-rotate if not currently animating to a location
+    if (earthGroupRef.current && !gsap.isTweening(earthGroupRef.current.rotation)) {
+      // Very slow auto-rotation
+      earthGroupRef.current.rotation.y += 0.00002;
+    }
+
     if (pinpointRef.current && pinpointRef.current.visible) {
       const time = state.clock.getElapsedTime();
       const scale = 0.55 + Math.sin(time * 1) * 0.1;
       pinpointRef.current.scale.setScalar(scale);
     }
-  });
-
-  return (
+  });  return (
     <>
       <ambientLight intensity={0.8} />
-      <directionalLight position={sunDir} intensity={5} />
-      {/* Axial tilt group - applied first */}
+      <directionalLight position={[10, 8, 0]} intensity={5} />
       <group ref={tiltGroupRef}>
-        {/* Earth rotation group - rotates around tilted axis */}
         <group ref={earthGroupRef}>
-          <mesh ref={earthMeshRef} geometry={geometry} material={earthMaterial} />
+          <mesh
+            ref={earthMeshRef}
+            geometry={geometry}
+            material={earthMaterial}
+            onPointerDown={handlePointerDown}
+          />
           <mesh ref={cloudsMeshRef} geometry={geometry} material={cloudsMaterial} scale={1.003} />
           <mesh geometry={geometry} material={fresnelMaterial} scale={1.01} />
-          {/* Pinpoint marker for searched location */}
           <mesh ref={pinpointRef} geometry={pinpointGeometry} material={pinpointMaterial} visible={false} />
         </group>
       </group>
@@ -187,7 +263,8 @@ const EarthModel = ({ coords }: Props) => {
   );
 };
 
-const EarthScene = ({ coords }: Props) => {
+const EarthScene = ({ coords, onLocationSelect, manualRotation }: Props) => {
+
   return (
     <Canvas
       camera={{ position: [0, 0, 2], fov: 75 }}
@@ -198,7 +275,7 @@ const EarthScene = ({ coords }: Props) => {
         toneMappingExposure: 0.5,
       }}
     >
-      <EarthModel coords={coords} />
+      <EarthModel coords={coords} onLocationSelect={onLocationSelect} manualRotation={manualRotation} />
     </Canvas>
   );
 };

@@ -1,6 +1,6 @@
 'use client'
 
-import EarthScene2 from "@/components/scenes/earth-scene-2";
+import EarthScene from "@/components/scenes/earth-scene";
 import LocationInput from "@/components/location-search.tsx/location-input";
 import { useSearchParams, useRouter } from "next/navigation";
 import React from "react";
@@ -8,6 +8,8 @@ import { getWeatherByLocation } from "../utils/api";
 import { CurrentWeatherResponse } from "@/types/current-weather";
 import WeatherDisplay from "@/components/weather-display.tsx/display";
 import StarsScene from "@/components/scenes/stars";
+import EarthControls from "@/components/scenes/earth-controls";
+import { EarthView } from "@/types/manual-rotation";
 
 export default function Home() {
   const searchParams = useSearchParams();
@@ -29,6 +31,9 @@ export default function Home() {
   const [error, setError] = React.useState<string | null>(null);
 
   const [coords, setCoords] = React.useState<[string, string]>(['0', '0'])
+
+  // Manual rotation state for lat/lng sliders
+  const [manualRotation, setManualRotation] = React.useState<EarthView>({ lat: 0, lng: 0 })
 
   // Handle location selection from earth double-click
   const handleLocationSelect = (lat: number, lng: number) => {
@@ -66,6 +71,23 @@ export default function Home() {
     };
   }, [locationQuery]);
 
+  // Update manual rotation sliders when coordinates change
+  React.useEffect(() => {
+    if (coords[0] && coords[1]) {
+      const lat = parseFloat(coords[0]);
+      const lng = parseFloat(coords[1]);
+      
+      if (!isNaN(lat) && !isNaN(lng)) {
+        // Clamp latitude to slider range (-45 to 45)
+        const clampedLat = -Math.max(-45, Math.min(45, lat));
+        // Longitude can be any value (-180 to 180), but we'll keep it within that range
+        const clampedLng = ((lng + 180) % 360) - 180;
+        
+        setManualRotation({ lat: clampedLat, lng: clampedLng });
+      }
+    }
+  }, [coords]);
+
   return (
     <div className="font-sans relative min-h-screen w-full">
       {/* Stars background - lowest z-index */}
@@ -73,13 +95,19 @@ export default function Home() {
       
       {/* Earth scene - middle layer */}
       <div className="absolute top-0 left-0 w-full h-full z-10">
-        <EarthScene2 coords={coords} onLocationSelect={handleLocationSelect}/>
+        <EarthScene coords={coords} onLocationSelect={handleLocationSelect} manualRotation={manualRotation}/>
       </div>
 
       {/* UI elements - highest z-index */}
       <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-300 flex justify-center p-16">
         <LocationInput />
       </div>
+
+      {/* Manual rotation controls */}
+      <EarthControls 
+        manualRotation={manualRotation}
+        setManualRotation={setManualRotation}
+      />
 
       {loading && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">Loading weather for {locationQuery}…</div>}
       {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 text-red-500">Error: {error}</div>}
