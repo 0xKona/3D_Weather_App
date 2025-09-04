@@ -103,12 +103,12 @@ function HomeContent() {
         </ThreeJSErrorBoundary>
         
         {/* Location Input for mobile - at top */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-full flex justify-center p-16 md:hidden">
+        <div className="w-full flex justify-center md:hidden p-2">
           <LocationInput />
         </div>
       
       {/* Main grid layout */}
-      <div className="grid grid-cols-1 md:grid-cols-10 min-h-screen relative z-10 pt-24 md:pt-0 ">
+      <div className="grid grid-cols-1 md:grid-cols-10 min-h-screen relative p-2 z-10">
         {/* Weather Display - full width on mobile, left column on desktop */}
         <div className="col-span-1 md:col-span-5 lg:col-span-5 xl:col-span-4">
           <WeatherDisplay data={data} loading={loading} error={error} />

@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 
 // If you are reading this, why?
 export const metadata: Metadata = {
-  title: "Better Weather",
-  description: "I made a weather app, look at me I am so cool, so pro",
+  title: "Weather App",
+  description: "Weather application using ThreeJS",
 };
 
 export default function RootLayout({

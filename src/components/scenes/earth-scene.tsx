@@ -237,21 +237,22 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
     }
   };
 
-  // Update sun direction every minute
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSunDirection(getSunDirection(new Date()));
-    }, 60000); // Update every minute
+  // TODO - Broken / Can't get working
+  // // Update sun direction every minute
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     setSunDirection(getSunDirection(new Date()));
+  //   }, 60000); // Update every minute
 
-    return () => clearInterval(interval);
-  }, []);
+  //   return () => clearInterval(interval);
+  // }, []);
 
-  // Update shader uniform when sun direction changes
-  useEffect(() => {
-    if (earthMaterial.uniforms.sunDirection) {
-      earthMaterial.uniforms.sunDirection.value = sunDirection;
-    }
-  }, [sunDirection, earthMaterial]);
+  // // Update shader uniform when sun direction changes
+  // useEffect(() => {
+  //   if (earthMaterial.uniforms.sunDirection) {
+  //     earthMaterial.uniforms.sunDirection.value = sunDirection;
+  //   }
+  // }, [sunDirection, earthMaterial]);
 
   // Cleanup animations on unmount
   useEffect(() => {
@@ -292,7 +293,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
   return (
     <>
       <ambientLight intensity={0.8} />
-      <directionalLight position={[10, 8, 0]} intensity={5} />
+      <directionalLight position={[0, 0, 0]} intensity={5} />
       <group ref={tiltGroupRef}>
         <group ref={earthGroupRef}>
           <mesh
