@@ -10,38 +10,102 @@ interface Props {
   coords: [string, string];
   onLocationSelect?: (lat: number, lng: number) => void;
   manualRotation?: { lat: number; lng: number };
-  zoom?: number; // New prop for zoom level
+  zoom?: number; // Controls the zoom level of the earth
 }
 
-// Function to calculate sun direction based on UTC time and current date
-// This simulates the sun's position in the sky for realistic lighting
-const getSunDirection = (date: Date): THREE.Vector3 => {
-  // Get UTC time in hours (0-23.99)
-  const utcHours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
-  
-  // Convert to angle (sun rises at 6 AM UTC, sets at 6 PM UTC)
-  // This creates a full day/night cycle over 24 hours
-  const sunAngle = ((utcHours - 6) / 12) * Math.PI; // -π/2 to π/2
-  
-  // Sun direction vector (simplified - sun moves from east to west)
-  // X: east-west movement, Y: up-down (day/night), Z: north-south (fixed for simplicity)
-  const sunX = Math.sin(sunAngle);
-  const sunY = Math.cos(sunAngle);
-  const sunZ = 0; // No north-south movement for simplicity
-  
-  return new THREE.Vector3(sunX, sunY, sunZ).normalize();
+/**
+ * Utility functions for Earth scene
+ */
+// Helper functions for lighting and coordinates
+const EarthUtils = {
+  /**
+   * Calculates sun direction vector based on current UTC time
+   * This simulates the sun's position for realistic day/night lighting
+   * 
+   * @param date - Current date/time
+   * @returns THREE.Vector3 representing normalized sun direction
+   */
+  getSunDirection: (date: Date): THREE.Vector3 => {
+    // Get UTC time in hours (0-23.99)
+    const utcHours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+    
+    // Convert to angle (sun rises at 6 AM UTC, sets at 6 PM UTC)
+    const sunAngle = ((utcHours - 6) / 12) * Math.PI;
+    
+    // Sun direction vector - models east to west movement
+    const sunX = Math.sin(sunAngle);
+    const sunY = Math.cos(sunAngle);
+    
+    return new THREE.Vector3(sunX, sunY, 0).normalize();
+  },
+
+  /**
+   * Calculates appropriate lighting intensity based on sun position
+   * 
+   * @param sunDirection - The current sun direction vector
+   * @returns number representing light intensity
+   */
+  getLightingIntensity: (sunDirection: THREE.Vector3): number => {
+    // Intensity based on sun's height above horizon (Y component)
+    // Ensures minimum ambient light at night, maximum during day
+    const intensity = Math.max(0.1, sunDirection.y);
+    return Math.min(2.0, intensity * 1.5);
+  },
+
+  /**
+   * Converts lat/lng coordinates to 3D position on a sphere
+   * 
+   * @param lat - Latitude in degrees
+   * @param lng - Longitude in degrees
+   * @param radius - Radius of sphere (slightly larger than 1 for pinpoint placement)
+   * @returns THREE.Vector3 position
+   */
+  latLngToVector3: (lat: number, lng: number, radius: number = 1.005): THREE.Vector3 => {
+    const phi = (90 - lat) * (Math.PI / 180); // Convert latitude to angle from north pole
+    const theta = (lng + 180) * (Math.PI / 180); // Convert longitude to angle, offset by 180°
+
+    // Calculate 3D coordinates using spherical coordinates
+    const x = -(radius * Math.sin(phi) * Math.cos(theta));
+    const z = (radius * Math.sin(phi) * Math.sin(theta));
+    const y = (radius * Math.cos(phi));
+
+    return new THREE.Vector3(x, y, z);
+  },
+
+  /**
+   * Converts 3D position to lat/lng coordinates
+   * Used when user clicks on Earth to select a location
+   * 
+   * @param position - 3D position vector
+   * @returns {lat, lng} coordinates in degrees
+   */
+  vector3ToLatLng: (position: THREE.Vector3) => {
+    const radius = position.length();
+    const phi = Math.acos(position.y / radius);
+    const lat = 90 - (phi * 180 / Math.PI);
+
+    // Calculate longitude from x-z plane
+    const theta = Math.atan2(position.z, -position.x);
+    let lng = (theta * 180 / Math.PI) - 180;
+
+    // Normalize longitude to -180 to 180 range
+    if (lng > 180) lng -= 360;
+    if (lng < -180) lng += 360;
+
+    return { lat, lng };
+  }
 };
 
-// Function to calculate lighting intensity based on sun position
-// This determines how bright the day side should be
-const getLightingIntensity = (sunDirection: THREE.Vector3): number => {
-  // Intensity based on sun's height above horizon
-  // Higher sun = brighter lighting
-  const intensity = Math.max(0.1, sunDirection.y); // Minimum ambient light
-  return Math.min(2.0, intensity * 1.5); // Cap at 2.0 for performance
-};
-
+/**
+ * EarthModel component - The core 3D Earth representation
+ * Handles:
+ * - Earth rendering with textures
+ * - Location pinpointing
+ * - Day/night cycle simulation
+ * - Interactive rotation and zoom
+ */
 const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Props) => {
+  // Click detection variables
   const clickCount = useRef(0);
   const clickTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -53,9 +117,9 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
   const pinpointRef = useRef<THREE.Mesh>(null);
   const sunLightRef = useRef<THREE.DirectionalLight>(null);
 
-  // State for dynamic lighting
-  const [sunDirection, setSunDirection] = useState(getSunDirection(new Date()));
-  const [lightingIntensity, setLightingIntensity] = useState(getLightingIntensity(sunDirection));
+  // State for dynamic lighting based on time of day
+  const [sunDirection, setSunDirection] = useState(EarthUtils.getSunDirection(new Date()));
+  const [lightingIntensity, setLightingIntensity] = useState(EarthUtils.getLightingIntensity(sunDirection));
 
   // Load textures for Earth appearance
   const earthMap = useLoader(THREE.TextureLoader, './textures/8081_earthmap10k.jpg');
@@ -90,41 +154,9 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
     color: 0xff4444,
     transparent: true,
     opacity: 0.9,
-    emissive: 0xff2222,
+    emissive: 0xff2222, // Makes pinpoint glow
     emissiveIntensity: 0.5,
   }), []);
-
-  // Convert latitude/longitude coordinates to 3D position on sphere surface
-  // This is used for placing the pinpoint marker
-  const latLngToVector3 = (lat: number, lng: number, radius: number = 1.005) => {
-    const phi = (90 - lat) * (Math.PI / 180); // Convert latitude to angle from north pole
-    const theta = (lng + 180) * (Math.PI / 180); // Convert longitude to angle, offset by 180°
-
-    // Calculate 3D coordinates using spherical coordinates
-    const x = -(radius * Math.sin(phi) * Math.cos(theta));
-    const z = (radius * Math.sin(phi) * Math.sin(theta));
-    const y = (radius * Math.cos(phi));
-
-    return new THREE.Vector3(x, y, z);
-  };
-
-  // Convert 3D position back to latitude/longitude
-  // This is used when user clicks on the Earth
-  const vector3ToLatLng = (position: THREE.Vector3) => {
-    const radius = position.length();
-    const phi = Math.acos(position.y / radius); // Angle from north pole
-    const lat = 90 - (phi * 180 / Math.PI);
-
-    // Calculate longitude from x-z plane
-    const theta = Math.atan2(position.z, -position.x);
-    let lng = (theta * 180 / Math.PI) - 180;
-
-    // Normalize longitude to -180 to 180 range
-    if (lng > 180) lng -= 360;
-    if (lng < -180) lng += 360;
-
-    return { lat, lng };
-  };
 
   // Position the pinpoint marker based on provided coordinates
   useEffect(() => {
@@ -133,7 +165,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
       const lng = parseFloat(coords[1]);
 
       if (!isNaN(lat) && !isNaN(lng)) {
-        const position = latLngToVector3(lat, lng);
+        const position = EarthUtils.latLngToVector3(lat, lng);
         pinpointRef.current.position.copy(position);
         pinpointRef.current.visible = true;
       }
@@ -147,14 +179,14 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
   // This provides day/night lighting without custom shaders
   const earthMaterial = useMemo(() => {
     return new THREE.MeshPhongMaterial({
-      map: earthMap, // Day texture
+      map: earthMap, // Day texture (color)
       bumpMap: earthBump, // Surface bump mapping for terrain
-      bumpScale: 0.04, // Bump intensity
-      specularMap: earthSpec, // Specular highlights
-      emissiveMap: earthLights, // Night lights that glow
-      emissive: new THREE.Color(0x444444), // Base emissive color
+      bumpScale: 0.04, // Bump intensity - subtle terrain effect
+      specularMap: earthSpec, // Controls shininess of water vs land
+      emissiveMap: earthLights, // Night lights texture (city lights)
+      emissive: new THREE.Color(0x444444), // Base emissive color (night side base color)
       emissiveIntensity: 0.3, // Night light brightness
-      shininess: 10, // Specular highlight intensity
+      shininess: 10, // Specular highlight intensity (water reflections)
     });
   }, [earthMap, earthBump, earthSpec, earthLights]);
 
@@ -162,7 +194,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
   const cloudsMaterial = useMemo(() => new THREE.MeshBasicMaterial({
     map: earthClouds,
     transparent: true,
-    opacity: 0.5,
+    opacity: 0.5, // Semi-transparent clouds
   }), [earthClouds]);
 
   // Create atmosphere material - subtle blue glow around Earth
@@ -170,13 +202,13 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
     color: 0x0099ff,
     transparent: true,
     opacity: 0.1,
-    side: THREE.BackSide, // Render on inside of sphere
+    side: THREE.BackSide, // Render on inside of sphere for glow effect
   }), []);
 
   // Cleanup effect to prevent memory leaks
   useEffect(() => {
     return () => {
-      // Dispose of materials
+      // Dispose of all materials
       earthMaterial.dispose();
       cloudsMaterial.dispose();
       fresnelMaterial.dispose();
@@ -188,14 +220,14 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
     };
   }, [earthMaterial, cloudsMaterial, fresnelMaterial, pinpointMaterial, geometry, pinpointGeometry]);
 
-  // Set Earth's axial tilt (23.44 degrees)
+  // Set Earth's axial tilt (23.44 degrees) - creates realistic seasonal lighting
   useEffect(() => {
     if (tiltGroupRef.current) {
       tiltGroupRef.current.rotation.z = THREE.MathUtils.degToRad(23.44);
     }
   }, []);
 
-  // Initialize Earth rotation to show Americas first
+  // Initialize Earth rotation to show Americas by default
   useEffect(() => {
     if (earthGroupRef.current) {
       earthGroupRef.current.rotation.set(0, THREE.MathUtils.degToRad(-90), 0);
@@ -205,16 +237,18 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
   // Handle manual rotation from control sliders
   useEffect(() => {
     if (earthGroupRef.current && manualRotation) {
+      // Convert degrees to radians
       const latRad = THREE.MathUtils.degToRad(manualRotation.lat);
       const lngRad = THREE.MathUtils.degToRad(manualRotation.lng);
 
+      // Animate rotation with GSAP for smooth transitions
       gsap.to(earthGroupRef.current.rotation, {
-        x: -latRad,
-        y: THREE.MathUtils.degToRad(-90) - lngRad,
+        x: -latRad, // Negative because we're rotating the earth, not the camera
+        y: THREE.MathUtils.degToRad(-90) - lngRad, // Offset from initial position
         z: 0,
         duration: 0.5,
-        ease: 'power2.out',
-        overwrite: true,
+        ease: 'power2.out', // Ease-out for natural motion
+        overwrite: true, // Prevent conflicting animations
       });
     }
   }, [manualRotation]);
@@ -222,6 +256,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
   // Handle zoom level changes
   useEffect(() => {
     if (earthGroupRef.current) {
+      // Use scale for zoom effect on the earth object
       gsap.to(earthGroupRef.current.scale, {
         x: zoom,
         y: zoom,
@@ -256,7 +291,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
         const localPoint = earthMeshRef.current.worldToLocal(point.clone());
 
         // Convert 3D position to lat/lng
-        const { lat, lng } = vector3ToLatLng(localPoint);
+        const { lat, lng } = EarthUtils.vector3ToLatLng(localPoint);
 
         console.log('Selected location:', lat, lng);
 
@@ -271,27 +306,30 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
   // Update sun direction and lighting periodically
   useEffect(() => {
     const updateLighting = () => {
-      const newSunDirection = getSunDirection(new Date());
-      const newIntensity = getLightingIntensity(newSunDirection);
+      // Calculate new sun direction and lighting intensity based on current time
+      const newSunDirection = EarthUtils.getSunDirection(new Date());
+      const newIntensity = EarthUtils.getLightingIntensity(newSunDirection);
       
       setSunDirection(newSunDirection);
       setLightingIntensity(newIntensity);
     };
 
-    // Update immediately
+    // Update immediately on mount
     updateLighting();
 
-    // Update every minute
+    // Update every minute to keep lighting in sync with real time
     const interval = setInterval(updateLighting, 60000);
 
     return () => clearInterval(interval);
   }, []);
 
-  // Update sun light position and intensity
+  // Update sun light position and intensity whenever they change
   useEffect(() => {
     if (sunLightRef.current) {
       // Position sun light far away in the direction of the sun
-      sunLightRef.current.position.copy(sunDirection.multiplyScalar(10));
+      // This creates realistic day/night terminator
+      const position = sunDirection.clone().multiplyScalar(10);
+      sunLightRef.current.position.copy(position);
       sunLightRef.current.intensity = lightingIntensity;
     }
   }, [sunDirection, lightingIntensity]);
@@ -301,7 +339,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
     const earthGroup = earthGroupRef.current;
     
     return () => {
-      // Kill GSAP animations
+      // Kill GSAP animations to prevent memory leaks
       if (earthGroup?.rotation) {
         gsap.killTweensOf(earthGroup.rotation);
       }
@@ -324,11 +362,13 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
     }
 
     // Auto-rotate Earth when not being manually controlled
+    // Creates subtle movement when the globe is idle
     if (earthGroupRef.current && !gsap.isTweening(earthGroupRef.current.rotation)) {
       earthGroupRef.current.rotation.y += 0.00002;
     }
 
     // Animate pinpoint marker (pulsing effect)
+    // Makes the location marker more noticeable
     if (pinpointRef.current && pinpointRef.current.visible) {
       const time = state.clock.getElapsedTime();
       const scale = 0.55 + Math.sin(time * 1) * 0.1;
@@ -338,7 +378,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
 
   return (
     <>
-      {/* Ambient light for overall scene illumination */}
+      {/* Ambient light for overall scene illumination - ensures dark side isn't completely black */}
       <ambientLight intensity={0.3} />
       
       {/* Directional sun light that moves with time */}
@@ -360,7 +400,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
             onPointerDown={handlePointerDown}
           />
           
-          {/* Clouds layer */}
+          {/* Clouds layer - slightly larger than Earth */}
           <mesh 
             ref={cloudsMeshRef} 
             geometry={geometry} 
@@ -368,7 +408,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
             scale={1.003} 
           />
           
-          {/* Atmosphere glow */}
+          {/* Atmosphere glow - creates blue halo effect */}
           <mesh 
             geometry={geometry} 
             material={fresnelMaterial} 
@@ -380,7 +420,7 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
             ref={pinpointRef} 
             geometry={pinpointGeometry} 
             material={pinpointMaterial} 
-            visible={false} 
+            visible={false} // Hidden by default until coordinates are provided
           />
         </group>
       </group>
@@ -392,12 +432,15 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
 const CameraController = ({ zoom = 1 }: { zoom?: number }) => {
   const { camera, viewport } = useThree();
 
+  // Update camera position based on zoom level
   useEffect(() => {
+    // Parameters for camera positioning
     const radius = 1; // Earth radius
-    const fovRad = THREE.MathUtils.degToRad(75); // Camera field of view
+    const fovRad = THREE.MathUtils.degToRad(75); // Camera field of view in radians
     const aspect = viewport.width / viewport.height;
 
-    // Calculate distance needed to fit Earth in viewport
+    // Calculate vertical and horizontal distances needed to fit Earth in viewport
+    // This ensures Earth fits regardless of viewport aspect ratio
     const fovY = 2 * Math.atan(Math.tan(fovRad / 2) / aspect);
     const distanceVertical = radius / Math.sin(fovY / 2);
 
@@ -407,16 +450,30 @@ const CameraController = ({ zoom = 1 }: { zoom?: number }) => {
     // Use larger distance to ensure Earth fits
     const baseDistance = Math.max(distanceVertical, distanceHorizontal);
     
-    // Apply zoom by adjusting distance
+    // Apply zoom by adjusting distance - higher zoom = closer camera
     const distance = baseDistance / zoom;
 
-    camera.position.set(0, 0, distance);
+    // Animate camera position for smooth zoom
+    gsap.to(camera.position, {
+      z: distance,
+      duration: 0.5,
+      ease: 'power2.out',
+    });
+    
     camera.updateProjectionMatrix();
   }, [camera, viewport, zoom]);
 
   return null;
 };
 
+/**
+ * Main Earth Scene component
+ * Renders a 3D Earth globe with interactive features:
+ * - Dynamic day/night lighting based on current time
+ * - Pinpoint marker for selected location
+ * - Interactive rotation and zoom controls
+ * - Location selection via double-clicking
+ */
 const EarthScene = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Props) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -425,11 +482,13 @@ const EarthScene = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Prevent default behavior when context is lost to enable recovery
     const handleContextLost = (event: Event) => {
       console.warn('WebGL context lost. Preventing default behavior.');
       event.preventDefault();
     };
 
+    // Handle context restoration
     const handleContextRestored = () => {
       console.log('WebGL context restored.');
     };
@@ -451,7 +510,7 @@ const EarthScene = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
         toneMappingExposure: 0.5,
-        preserveDrawingBuffer: true,
+        preserveDrawingBuffer: true, // Enables taking screenshots
         powerPreference: "high-performance",
         alpha: true,
         premultipliedAlpha: false,
@@ -463,7 +522,10 @@ const EarthScene = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
         gl.debug.checkShaderErrors = process.env.NODE_ENV === 'development';
       }}
     >
+      {/* Camera controller manages viewing distance based on zoom level */}
       <CameraController zoom={zoom} />
+      
+      {/* Earth model with all interactive features */}
       <EarthModel 
         coords={coords} 
         onLocationSelect={onLocationSelect} 
