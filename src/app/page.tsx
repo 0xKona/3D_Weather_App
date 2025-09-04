@@ -11,10 +11,16 @@ import StarsScene from "@/components/scenes/stars";
 import EarthControls from "@/components/scenes/earth-controls";
 import { EarthView } from "@/types/manual-rotation";
 import Footer from "@/components/footer/footer";
+import { WebGLProvider } from "@/components/scenes/webgl-provider";
+import { ThreeJSErrorBoundary } from "@/components/scenes/threejs-error-boundary";
+import { useWebGLMemoryManagement } from "@/hooks/useWebGLMemoryManagement";
 
 function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  // WebGL memory management hook for development
+  useWebGLMemoryManagement();
 
   // Check if location param exists, if not redirect to default
   React.useEffect(() => {
@@ -89,49 +95,53 @@ function HomeContent() {
   }, [coords]);
 
   return (
-    <>
+    <WebGLProvider>
       <div className="font-sans relative min-h-screen w-full">
         {/* Stars background - lowest z-index, covering whole page */}
-        <StarsScene />
+        <ThreeJSErrorBoundary>
+          <StarsScene />
+        </ThreeJSErrorBoundary>
         
         {/* Location Input for mobile - at top */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16 block md:hidden">
+        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-full flex justify-center p-16 md:hidden">
           <LocationInput />
         </div>
-        
-        {/* Main grid layout */}
-        <div className="grid grid-cols-1 md:grid-cols-10 min-h-screen relative z-10 pt-24 md:pt-0">
-          {/* Weather Display - full width on mobile, left column on desktop */}
-          <div className="col-span-1 md:col-span-4">
-            <WeatherDisplay data={data} loading={loading} error={error} />
+      
+      {/* Main grid layout */}
+      <div className="grid grid-cols-1 md:grid-cols-10 min-h-screen relative z-10 pt-24 md:pt-0 ">
+        {/* Weather Display - full width on mobile, left column on desktop */}
+        <div className="col-span-1 md:col-span-5 lg:col-span-5 xl:col-span-4">
+          <WeatherDisplay data={data} loading={loading} error={error} />
+        </div>
+      
+        {/* Earth scene and controls - hidden on mobile/tablet, right columns on desktop */}
+        <div className="col-span-1 md:col-span-5 lg:col-span-5 relative hidden md:block md:mr-15 xl:mr-0">
+          {/* Location Input for desktop - part of earth scene area */}
+          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[75%] flex justify-center pt-16">
+            <LocationInput />
           </div>
-        
-          {/* Earth scene and controls - hidden on mobile/tablet, right columns on desktop */}
-          <div className="col-span-1 md:col-span-5 relative hidden md:block">
-            {/* Location Input for desktop - part of earth scene area */}
-            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16">
-              <LocationInput />
-            </div>
-            
-            {/* Earth scene */}
-            <div className="absolute inset-0">
+          
+          {/* Earth scene */}
+          <div className="absolute inset-0 xl:pt-[100px]">
+            <ThreeJSErrorBoundary>
               <EarthScene coords={coords} onLocationSelect={handleLocationSelect} manualRotation={manualRotation}/>
-            </div>
-            
-            {/* Manual rotation controls */}
-            <EarthControls 
-              manualRotation={manualRotation}
-              setManualRotation={setManualRotation}
-            />
-            
-            {/* Loading and error messages */}
-            {loading && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">Loading weather for {locationQuery}…</div>}
-            {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 text-red-500">Error: {error}</div>}
+            </ThreeJSErrorBoundary>
           </div>
+          
+          {/* Manual rotation controls */}
+          <EarthControls 
+            manualRotation={manualRotation}
+            setManualRotation={setManualRotation}
+          />
+          
+          {/* Loading and error messages */}
+          {loading && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">Loading weather for {locationQuery}…</div>}
+          {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 text-red-500">Error: {error}</div>}
         </div>
       </div>
+      </div>
       <Footer />
-    </>
+    </WebGLProvider>
   );
 }
 
