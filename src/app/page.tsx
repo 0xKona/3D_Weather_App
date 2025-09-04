@@ -104,7 +104,7 @@ function HomeContent() {
           </ThreeJSErrorBoundary>
           
           {/* Location Input for mobile - at top */}
-          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16 md:hidden">
+          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-full flex justify-center p-16 md:hidden">
             <LocationInput />
           </div>
         
@@ -118,12 +118,12 @@ function HomeContent() {
           {/* Earth scene and controls - hidden on mobile/tablet, right columns on desktop */}
           <div className="col-span-1 md:col-span-5 relative hidden md:block">
             {/* Location Input for desktop - part of earth scene area */}
-            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16">
+            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-full flex justify-center p-16">
               <LocationInput />
             </div>
             
             {/* Earth scene */}
-            <div className="absolute inset-0">
+            <div className="absolute inset-0 pt-[100px]">
               <ThreeJSErrorBoundary>
                 <EarthScene coords={coords} onLocationSelect={handleLocationSelect} manualRotation={manualRotation}/>
               </ThreeJSErrorBoundary>
