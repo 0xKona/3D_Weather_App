@@ -31,7 +31,7 @@ export default function WeatherDisplay({ data, loading, error }: Props) {
 
   if (error) {
     return (
-      <div className="flex flex-col w-full h-screen md:p-16 justify-center items-center bg-transparent">
+      <div className="flex flex-col w-full md:h-screen md:p-16 justify-center items-center bg-transparent">
         <div className="card w-full max-w-md bg-black/20 backdrop-blur-sm rounded-lg p-4 text-white shadow-xl">
           <p className="text-red-500 text-center">Error: {error}</p>
         </div>
