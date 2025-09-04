@@ -29,14 +29,18 @@ const EarthUtils = {
     // Get UTC time in hours (0-23.99)
     const utcHours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
     
-    // Convert to angle (sun rises at 6 AM UTC, sets at 6 PM UTC)
-    const sunAngle = ((utcHours - 6) / 12) * Math.PI;
+    // Convert to angle (full 360° rotation over 24 hours)
+    // 0 hours = midnight, sun at nadir (below Earth)
+    // 12 hours = noon, sun at zenith (above Earth)
+    const sunAngle = (utcHours / 24) * Math.PI * 2;
     
-    // Sun direction vector - models east to west movement
-    const sunX = Math.sin(sunAngle);
-    const sunY = Math.cos(sunAngle);
+    // Sun direction vector using spherical coordinates
+    // X-Z plane is the equator, Y is up/down
+    const sunX = Math.cos(sunAngle); // East-West position
+    const sunY = Math.sin(sunAngle); // Height above/below horizon
+    const sunZ = 0; // Keep on a single plane for simplicity
     
-    return new THREE.Vector3(sunX, sunY, 0).normalize();
+    return new THREE.Vector3(sunX, sunY, sunZ).normalize();
   },
 
   /**
@@ -46,10 +50,19 @@ const EarthUtils = {
    * @returns number representing light intensity
    */
   getLightingIntensity: (sunDirection: THREE.Vector3): number => {
-    // Intensity based on sun's height above horizon (Y component)
-    // Ensures minimum ambient light at night, maximum during day
-    const intensity = Math.max(0.1, sunDirection.y);
-    return Math.min(2.0, intensity * 1.5);
+    // For better day/night contrast, we use the absolute Y value
+    // and add a minimum intensity to prevent complete darkness
+    const baseIntensity = Math.abs(sunDirection.y);
+    
+    // Scale up intensity during daytime (when Y is positive)
+    // This creates a brighter day side
+    const scaleFactor = sunDirection.y > 0 ? 1.8 : 1.0;
+    
+    // Ensure intensity is never below minimum threshold for night side visibility
+    const intensity = Math.max(0.5, baseIntensity * scaleFactor);
+    
+    // Cap at reasonable maximum to prevent overexposure
+    return Math.min(2.0, intensity);
   },
 
   /**
@@ -178,31 +191,54 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
   // Create Earth material using standard Three.js materials instead of shaders
   // This provides day/night lighting without custom shaders
   const earthMaterial = useMemo(() => {
-    return new THREE.MeshPhongMaterial({
+    // MeshStandardMaterial provides more physically accurate lighting than MeshPhongMaterial
+    return new THREE.MeshStandardMaterial({
       map: earthMap, // Day texture (color)
       bumpMap: earthBump, // Surface bump mapping for terrain
       bumpScale: 0.04, // Bump intensity - subtle terrain effect
-      specularMap: earthSpec, // Controls shininess of water vs land
-      emissiveMap: earthLights, // Night lights texture (city lights)
-      emissive: new THREE.Color(0x444444), // Base emissive color (night side base color)
-      emissiveIntensity: 0.3, // Night light brightness
-      shininess: 10, // Specular highlight intensity (water reflections)
+      
+      // Metalness affects how the light interacts with the surface
+      // 0 = non-metallic (earth is mostly non-metallic)
+      metalness: 0.1,
+      
+      // Roughness affects how diffuse vs sharp the reflections are
+      // Higher = more diffuse lighting (earth is mostly rough)
+      roughness: 0.8,
+      
+      // Night lights emissive effect (city lights)
+      emissiveMap: earthLights,
+      emissive: new THREE.Color(0x555555),
+      emissiveIntensity: 1.0,
+      
+      // This ensures better lighting reception
+      lightMapIntensity: 1.2,
     });
-  }, [earthMap, earthBump, earthSpec, earthLights]);
+  }, [earthMap, earthBump, earthLights]);
 
   // Create clouds material - transparent layer over Earth
-  const cloudsMaterial = useMemo(() => new THREE.MeshBasicMaterial({
+  // Using MeshStandardMaterial so clouds can be lit by directional light
+  const cloudsMaterial = useMemo(() => new THREE.MeshStandardMaterial({
     map: earthClouds,
     transparent: true,
-    opacity: 0.5, // Semi-transparent clouds
+    opacity: 0.65, // Semi-transparent clouds
+    alphaTest: 0.1, // Helps with transparency sorting
+    roughness: 1.0, // Clouds are not shiny
+    metalness: 0.0,
+    emissive: new THREE.Color(0xaaaaaa), // Slight emissive effect so clouds are visible at night
+    emissiveIntensity: 0.05,
   }), [earthClouds]);
 
   // Create atmosphere material - subtle blue glow around Earth
-  const fresnelMaterial = useMemo(() => new THREE.MeshBasicMaterial({
-    color: 0x0099ff,
+  // Using MeshPhongMaterial for better control over the glow effect
+  const fresnelMaterial = useMemo(() => new THREE.MeshPhongMaterial({
+    color: 0x3388ff,
     transparent: true,
-    opacity: 0.1,
+    opacity: 0.15,
     side: THREE.BackSide, // Render on inside of sphere for glow effect
+    shininess: 100, // Makes the atmosphere glow more
+    emissive: new THREE.Color(0x1155aa),
+    emissiveIntensity: 0.2,
+    depthWrite: false, // Prevents z-fighting with the Earth
   }), []);
 
   // Cleanup effect to prevent memory leaks
@@ -306,19 +342,29 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
   // Update sun direction and lighting periodically
   useEffect(() => {
     const updateLighting = () => {
+      // Get current time
+      const now = new Date();
+      
       // Calculate new sun direction and lighting intensity based on current time
-      const newSunDirection = EarthUtils.getSunDirection(new Date());
+      const newSunDirection = EarthUtils.getSunDirection(now);
       const newIntensity = EarthUtils.getLightingIntensity(newSunDirection);
       
+      // Update state to trigger re-renders
       setSunDirection(newSunDirection);
       setLightingIntensity(newIntensity);
+      
+      // Log for debugging (can be removed in production)
+      console.log(`Sun updated: ${now.toUTCString()}, Direction:`, 
+                  newSunDirection.toArray(), 
+                  `Intensity: ${newIntensity.toFixed(2)}`);
     };
 
     // Update immediately on mount
     updateLighting();
 
-    // Update every minute to keep lighting in sync with real time
-    const interval = setInterval(updateLighting, 60000);
+    // Update more frequently for smoother transitions (every 20 seconds)
+    // This creates more gradual lighting changes as time progresses
+    const interval = setInterval(updateLighting, 20000);
 
     return () => clearInterval(interval);
   }, []);
@@ -326,11 +372,24 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
   // Update sun light position and intensity whenever they change
   useEffect(() => {
     if (sunLightRef.current) {
-      // Position sun light far away in the direction of the sun
-      // This creates realistic day/night terminator
-      const position = sunDirection.clone().multiplyScalar(10);
+      // Position sun light in world space (not relative to Earth)
+      // This ensures lighting direction is maintained when Earth rotates
+      const position = sunDirection.clone().multiplyScalar(100);
       sunLightRef.current.position.copy(position);
       sunLightRef.current.intensity = lightingIntensity;
+      
+      // Make sun light look at the origin (center of Earth)
+      // This ensures the light rays are always directed at the Earth
+      sunLightRef.current.lookAt(0, 0, 0);
+      
+      // Update light color based on time of day (warmer at sunrise/sunset)
+      const dayFactor = Math.max(0, Math.min(1, (sunDirection.y + 0.3) / 0.6));
+      const lightColor = new THREE.Color().setHSL(
+        0.08, // Slight orange-yellow hue
+        0.5, 
+        0.5 + (dayFactor * 0.5) // Brighter during day
+      );
+      sunLightRef.current.color = lightColor;
     }
   }, [sunDirection, lightingIntensity]);
 
@@ -378,14 +437,22 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
 
   return (
     <>
-      {/* Ambient light for overall scene illumination - ensures dark side isn't completely black */}
-      <ambientLight intensity={0.3} />
+      {/* Ambient light for overall scene illumination - provides base lighting */}
+      <ambientLight intensity={0.2} color={new THREE.Color(0x404050)} />
       
-      {/* Directional sun light that moves with time */}
+      {/* Hemisphere light - simulates sky and ground light reflection */}
+      <hemisphereLight 
+        color={new THREE.Color(0x88aaff)} // Sky color (slightly blue)
+        groundColor={new THREE.Color(0x554422)} // Ground reflection (brownish)
+        intensity={0.4}
+      />
+      
+      {/* Main directional sun light that moves with time */}
       <directionalLight 
         ref={sunLightRef}
-        position={[0, 0, 0]} // Will be updated by useEffect
-        intensity={1} // Will be updated by useEffect
+        position={[0, 100, 0]} // Initial position - will be updated by useEffect
+        intensity={1.5} // Initial intensity - will be updated by useEffect
+        color={new THREE.Color(0xffffff)}
         castShadow={false} // Disable shadows for performance
       />
       
@@ -398,6 +465,8 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
             geometry={geometry}
             material={earthMaterial}
             onPointerDown={handlePointerDown}
+            castShadow={false}
+            receiveShadow={false}
           />
           
           {/* Clouds layer - slightly larger than Earth */}
