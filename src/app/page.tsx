@@ -42,6 +42,9 @@ function HomeContent() {
   // Manual rotation state for lat/lng sliders
   const [manualRotation, setManualRotation] = React.useState<EarthView>({ lat: 0, lng: 0 })
 
+  // Zoom state for earth zoom control
+  const [zoom, setZoom] = React.useState<number>(1)
+
   // Handle location selection from earth double-click
   const handleLocationSelect = (lat: number, lng: number) => {
     const newLocation = `${lat},${lng}`;
@@ -124,7 +127,12 @@ function HomeContent() {
           {/* Earth scene */}
           <div className="absolute inset-0 xl:pt-[100px]">
             <ThreeJSErrorBoundary>
-              <EarthScene coords={coords} onLocationSelect={handleLocationSelect} manualRotation={manualRotation}/>
+              <EarthScene 
+                coords={coords} 
+                onLocationSelect={handleLocationSelect} 
+                manualRotation={manualRotation}
+                zoom={zoom}
+              />
             </ThreeJSErrorBoundary>
           </div>
           
@@ -132,6 +140,8 @@ function HomeContent() {
           <EarthControls 
             manualRotation={manualRotation}
             setManualRotation={setManualRotation}
+            zoom={zoom}
+            setZoom={setZoom}
           />
           
           {/* Loading and error messages */}
