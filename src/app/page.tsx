@@ -11,10 +11,16 @@ import StarsScene from "@/components/scenes/stars";
 import EarthControls from "@/components/scenes/earth-controls";
 import { EarthView } from "@/types/manual-rotation";
 import Footer from "@/components/footer/footer";
+import { WebGLProvider } from "@/components/scenes/webgl-provider";
+import { ThreeJSErrorBoundary } from "@/components/scenes/threejs-error-boundary";
+import { useWebGLMemoryManagement } from "@/hooks/useWebGLMemoryManagement";
 
 function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  // WebGL memory management hook for development
+  useWebGLMemoryManagement();
 
   // Check if location param exists, if not redirect to default
   React.useEffect(() => {
@@ -90,14 +96,17 @@ function HomeContent() {
 
   return (
     <>
-      <div className="font-sans relative min-h-screen w-full">
-        {/* Stars background - lowest z-index, covering whole page */}
-        <StarsScene />
-        
-        {/* Location Input for mobile - at top */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16 block md:hidden">
-          <LocationInput />
-        </div>
+      <WebGLProvider>
+        <div className="font-sans relative min-h-screen w-full">
+          {/* Stars background - lowest z-index, covering whole page */}
+          <ThreeJSErrorBoundary>
+            <StarsScene />
+          </ThreeJSErrorBoundary>
+          
+          {/* Location Input for mobile - at top */}
+          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-[300px] flex justify-center p-16 md:hidden">
+            <LocationInput />
+          </div>
         
         {/* Main grid layout */}
         <div className="grid grid-cols-1 md:grid-cols-10 min-h-screen relative z-10 pt-24 md:pt-0">
@@ -115,7 +124,9 @@ function HomeContent() {
             
             {/* Earth scene */}
             <div className="absolute inset-0">
-              <EarthScene coords={coords} onLocationSelect={handleLocationSelect} manualRotation={manualRotation}/>
+              <ThreeJSErrorBoundary>
+                <EarthScene coords={coords} onLocationSelect={handleLocationSelect} manualRotation={manualRotation}/>
+              </ThreeJSErrorBoundary>
             </div>
             
             {/* Manual rotation controls */}
@@ -129,8 +140,9 @@ function HomeContent() {
             {error && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 text-red-500">Error: {error}</div>}
           </div>
         </div>
-      </div>
-      <Footer />
+        </div>
+        <Footer />
+      </WebGLProvider>
     </>
   );
 }

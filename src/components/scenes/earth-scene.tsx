@@ -49,9 +49,9 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
   const earthLights = useLoader(THREE.TextureLoader, './textures/8081_earthlights10k.jpg');
   const earthClouds = useLoader(THREE.TextureLoader, './textures/clouds_map.jpg');
 
-  // Enhance texture quality
+  // Enhance texture quality and cleanup
   useEffect(() => {
-    const textures = [earthMap, earthSpec, earthBump, earthLights];
+    const textures = [earthMap, earthSpec, earthBump, earthLights, earthClouds];
     textures.forEach(texture => {
       texture.anisotropy = 16;
       texture.magFilter = THREE.LinearFilter;
@@ -60,6 +60,13 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
       texture.generateMipmaps = true;
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     });
+
+    // Cleanup function to dispose textures
+    return () => {
+      textures.forEach(texture => {
+        texture.dispose();
+      });
+    };
   }, [earthMap, earthSpec, earthBump, earthLights, earthClouds]);
 
   // Create pinpoint geometry and material
@@ -117,34 +124,53 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
     }
   }, [coords]);
 
-  const geometry = new THREE.SphereGeometry(1, 128, 96);
+  const geometry = useMemo(() => new THREE.SphereGeometry(1, 128, 96), []);
 
-  const earthMaterial = useMemo(() => new THREE.ShaderMaterial({
-    uniforms: {
-      dayTexture: { value: earthMap },
-      nightTexture: { value: earthLights },
-      specularMap: { value: earthSpec },
-      bumpMap: { value: earthBump },
-      bumpScale: { value: 0.04 },
-      sunDirection: { value: sunDirection },
-      emissionStrength: { value: 0.8 },
-    },
-    vertexShader: vertexShader,
-    fragmentShader: fragmentShader,
-  }), [earthMap, earthLights, earthSpec, earthBump, sunDirection]);
+  const earthMaterial = useMemo(() => {
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        dayTexture: { value: earthMap },
+        nightTexture: { value: earthLights },
+        specularMap: { value: earthSpec },
+        bumpMap: { value: earthBump },
+        bumpScale: { value: 0.04 },
+        sunDirection: { value: sunDirection },
+        emissionStrength: { value: 0.8 },
+      },
+      vertexShader: vertexShader,
+      fragmentShader: fragmentShader,
+    });
+    
+    return material;
+  }, [earthMap, earthLights, earthSpec, earthBump, sunDirection]);
 
-  const cloudsMaterial = new THREE.MeshBasicMaterial({
+  const cloudsMaterial = useMemo(() => new THREE.MeshBasicMaterial({
     map: earthClouds,
     transparent: true,
     opacity: 0.5,
-  });
+  }), [earthClouds]);
 
-  const fresnelMaterial = new THREE.MeshBasicMaterial({
+  const fresnelMaterial = useMemo(() => new THREE.MeshBasicMaterial({
     color: 0x0099ff,
     transparent: true,
     opacity: 0.1,
     side: THREE.BackSide,
-  });
+  }), []);
+
+  // Cleanup effect for materials and geometry
+  useEffect(() => {
+    return () => {
+      // Dispose of materials
+      earthMaterial.dispose();
+      cloudsMaterial.dispose();
+      fresnelMaterial.dispose();
+      pinpointMaterial.dispose();
+      
+      // Dispose of geometry
+      geometry.dispose();
+      pinpointGeometry.dispose();
+    };
+  }, [earthMaterial, cloudsMaterial, fresnelMaterial, pinpointMaterial, geometry, pinpointGeometry]);
 
   // Set Earth's axial tilt
   useEffect(() => {
@@ -227,6 +253,23 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
     }
   }, [sunDirection, earthMaterial]);
 
+  // Cleanup animations on unmount
+  useEffect(() => {
+    const earthGroup = earthGroupRef.current;
+    
+    return () => {
+      // Kill all GSAP animations on this component
+      if (earthGroup?.rotation) {
+        gsap.killTweensOf(earthGroup.rotation);
+      }
+      
+      // Clear any pending timers
+      if (clickTimer.current) {
+        clearTimeout(clickTimer.current);
+      }
+    };
+  }, []);
+
   // Animate clouds and pinpoint
   useFrame((state) => {
     if (cloudsMeshRef.current) {
@@ -295,13 +338,49 @@ const CameraController = () => {
 };
 
 const EarthScene = ({ coords, onLocationSelect, manualRotation }: Props) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Handle WebGL context loss
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleContextLost = (event: Event) => {
+      console.warn('WebGL context lost. Preventing default behavior.');
+      event.preventDefault();
+    };
+
+    const handleContextRestored = () => {
+      console.log('WebGL context restored.');
+    };
+
+    canvas.addEventListener('webglcontextlost', handleContextLost);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored);
+
+    return () => {
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+    };
+  }, []);
+
   return (
     <Canvas
+      ref={canvasRef}
       camera={{ fov: 75 }}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
         toneMappingExposure: 0.5,
+        preserveDrawingBuffer: true,
+        powerPreference: "high-performance",
+        alpha: true,
+        premultipliedAlpha: false,
+        stencil: false,
+        depth: true,
+      }}
+      onCreated={({ gl }) => {
+        // Additional WebGL context settings
+        gl.debug.checkShaderErrors = process.env.NODE_ENV === 'development';
       }}
     >
       <CameraController />

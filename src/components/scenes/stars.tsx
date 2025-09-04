@@ -6,18 +6,17 @@ import * as THREE from 'three';
 function Stars() {
   const starsRef = useRef<THREE.Points>(null);
 
-  // Create stars geometry and material
-  const starsGeometry = useMemo(() => new THREE.BufferGeometry(), []);
-  const starsMaterial = useMemo(() => new THREE.PointsMaterial({
-    color: 0xffffff,
-    size: 2,
-    sizeAttenuation: false,
-    transparent: true,
-    opacity: 0.8,
-  }), []);
+  // Create stars geometry and material with useMemo for stability
+  const { starsGeometry, starsMaterial } = useMemo(() => {
+    const geometry = new THREE.BufferGeometry();
+    const material = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 2,
+      sizeAttenuation: false,
+      transparent: true,
+      opacity: 0.8,
+    });
 
-  // Create starfield with different sized stars for depth
-  useEffect(() => {
     const starsVertices = [];
     const starsColors = [];
     const starsSizes = [];
@@ -42,10 +41,20 @@ function Stars() {
       starsSizes.push(Math.random() * 2 + 0.5);
     }
     
-    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
-    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
-    starsGeometry.setAttribute('size', new THREE.Float32BufferAttribute(starsSizes, 1));
-  }, [starsGeometry]);
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+    geometry.setAttribute('size', new THREE.Float32BufferAttribute(starsSizes, 1));
+
+    return { starsGeometry: geometry, starsMaterial: material };
+  }, []);
+
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      starsGeometry.dispose();
+      starsMaterial.dispose();
+    };
+  }, [starsGeometry, starsMaterial]);
 
   useFrame(() => {
     // Slowly rotate stars for subtle movement
@@ -59,8 +68,34 @@ function Stars() {
 }
 
 export default function StarsScene() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Handle WebGL context loss for stars scene
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleContextLost = (event: Event) => {
+      console.warn('Stars WebGL context lost. Preventing default behavior.');
+      event.preventDefault();
+    };
+
+    const handleContextRestored = () => {
+      console.log('Stars WebGL context restored.');
+    };
+
+    canvas.addEventListener('webglcontextlost', handleContextLost);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored);
+
+    return () => {
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+    };
+  }, []);
+
   return (
     <Canvas
+      ref={canvasRef}
       className="absolute top-0 left-0 w-full h-full"
       style={{ 
         position: 'absolute',
@@ -71,6 +106,15 @@ export default function StarsScene() {
         zIndex: 0
       }}
       camera={{ position: [0, 0, 1], fov: 75 }}
+      gl={{
+        antialias: false, // Disable antialias for background stars for performance
+        preserveDrawingBuffer: false,
+        powerPreference: "default",
+        alpha: true,
+        premultipliedAlpha: false,
+        stencil: false,
+        depth: false, // Stars don't need depth testing
+      }}
     >
       <Stars />
     </Canvas>
