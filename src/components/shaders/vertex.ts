@@ -1,6 +1,22 @@
 /**
- * Vertex shader for Earth rendering
- * Handles position calculation and passes normal, UV and position data to fragment shader
+ * Vertex shader for the Earth scene.
+ *
+ * Responsibilities:
+ * - Provide interpolated data to the fragment shader (uv, normals, positions).
+ * - Compute world-space normal and position for lighting calculations.
+ *
+ * Uniforms: sunDirection
+ * Varyings: vNormal, vPosition, vUv, vWorldNormal, vWorldPosition
+ *
+ * Quick defs:
+ * - Uniforms: read-only values supplied from JS per draw (same for all verts/frags). e.g. `sunDirection`.
+ * - Attributes: per-vertex inputs provided by the mesh (position, normal, uv).
+ * - Varyings: values the vertex shader outputs and that are interpolated across the
+ *   primitive for the fragment shader (e.g. `vUv`, `vWorldNormal`).
+ *
+ * Notes:
+ * - Keep vertex work minimal: transforms only, no expensive per-vertex math.
+ * - vWorldNormal is computed via modelMatrix to ensure correct lighting when the globe rotates.
  */
 export const vertexShader = `
     // Input uniforms

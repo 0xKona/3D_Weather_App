@@ -1,6 +1,19 @@
 /**
- * Fragment shader for Earth rendering
- * Handles day/night transitions and lighting effects based on sun position
+ * Fragment shader for the Earth scene.
+ *
+ * Samples day/night/specular/bump textures and blends them using
+ * the normalized `sunDirection` to produce a smooth, readable
+ * day/night terminator. Outputs an opaque RGB color; clouds and
+ * atmosphere are separate layers.
+ *
+ * Uniforms: dayTexture, nightTexture, specularMap, bumpMap, sunDirection, bumpScale
+ *
+ * Notes:
+ * - Terminator: smoothstep blend softens the day/night edge; widen/narrow smoothstep to tweak.
+ * - Night: nightTexture amplified + small ambient lift so features stay readable without losing lights.
+ * - Specular: only on lit hemisphere (water glint); lower power if highlights are harsh.
+ * - Perf: favors clarity over physical accuracy; avoid heavy per-fragment work.
+ * - Integration: shader outputs alpha=1.0; use separate materials for translucency (clouds/atmosphere).
  */
 export const fragmentShader = `
     // Input textures
