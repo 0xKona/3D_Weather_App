@@ -1,356 +1,34 @@
 'use client';
 
-import { useFrame, useLoader, useThree } from '@react-three/fiber';
-import { useRef, useEffect, useMemo, useState } from 'react';
+import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
-import { vertexShader } from '../shaders/vertex';
-import { fragmentShader } from '../shaders/fragment';
-import gsap from 'gsap';
+import EarthModel, { EarthSceneProps } from './earth-model';
+import CameraController from './camera-controller';
 
-interface Props {
-  coords: [string, string];
-  onLocationSelect?: (lat: number, lng: number) => void;
-  manualRotation?: { lat: number; lng: number };
-}
-
-// Function to calculate sun direction based on UTC time
-const getSunDirection = (date: Date): THREE.Vector3 => {
-  // Get UTC time in hours (0-23.99)
-  const utcHours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
-  
-  // Convert to angle (sun rises at 6 AM UTC, sets at 6 PM UTC)
-  const sunAngle = ((utcHours - 6) / 12) * Math.PI; // -π/2 to π/2
-  
-  // Sun direction vector (simplified - sun moves from east to west)
-  const sunX = Math.sin(sunAngle);
-  const sunY = Math.cos(sunAngle);
-  const sunZ = 0; // No north-south movement for simplicity
-  
-  return new THREE.Vector3(sunX, sunY, sunZ).normalize();
-};
-
-const EarthModel = ({ coords, onLocationSelect, manualRotation }: Props) => {
-  const clickCount = useRef(0);
-  const clickTimer = useRef<NodeJS.Timeout | null>(null);
-
-  const tiltGroupRef = useRef<THREE.Group>(null);
-  const earthGroupRef = useRef<THREE.Group>(null);
-  const cloudsMeshRef = useRef<THREE.Mesh>(null);
-  const earthMeshRef = useRef<THREE.Mesh>(null);
-  const pinpointRef = useRef<THREE.Mesh>(null);
-
-  const [sunDirection, setSunDirection] = useState(getSunDirection(new Date()));
-
-  // Load textures
-  const earthMap = useLoader(THREE.TextureLoader, './textures/8081_earthmap10k.jpg');
-  const earthSpec = useLoader(THREE.TextureLoader, './textures/8081_earthspec10k.jpg');
-  const earthBump = useLoader(THREE.TextureLoader, './textures/8081_earthbump10k.jpg');
-  const earthLights = useLoader(THREE.TextureLoader, './textures/8081_earthlights10k.jpg');
-  const earthClouds = useLoader(THREE.TextureLoader, './textures/clouds_map.jpg');
-
-  // Enhance texture quality and cleanup
-  useEffect(() => {
-    const textures = [earthMap, earthSpec, earthBump, earthLights, earthClouds];
-    textures.forEach(texture => {
-      texture.anisotropy = 16;
-      texture.magFilter = THREE.LinearFilter;
-      texture.minFilter = THREE.LinearMipmapLinearFilter;
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.generateMipmaps = true;
-      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    });
-
-    // Cleanup function to dispose textures
-    return () => {
-      textures.forEach(texture => {
-        texture.dispose();
-      });
-    };
-  }, [earthMap, earthSpec, earthBump, earthLights, earthClouds]);
-
-  // Create pinpoint geometry and material
-  const pinpointGeometry = useMemo(() => new THREE.SphereGeometry(0.015, 16, 16), []);
-  const pinpointMaterial = useMemo(() => new THREE.MeshLambertMaterial({
-    color: 0xff4444,
-    transparent: true,
-    opacity: 0.9,
-    emissive: 0xff2222,
-    emissiveIntensity: 0.5,
-  }), []);
-
-  // Function to convert lat/lng to 3D position on sphere
-  const latLngToVector3 = (lat: number, lng: number, radius: number = 1.005) => {
-    const phi = (90 - lat) * (Math.PI / 180); // latitude angle from north pole
-    const theta = (lng + 180) * (Math.PI / 180); // longitude angle, offset by 180°
-
-    const x = -(radius * Math.sin(phi) * Math.cos(theta));
-    const z = (radius * Math.sin(phi) * Math.sin(theta));
-    const y = (radius * Math.cos(phi));
-
-    return new THREE.Vector3(x, y, z);
-  };
-
-  // Function to convert 3D position to lat/lng
-  const vector3ToLatLng = (position: THREE.Vector3) => {
-    const radius = position.length();
-    const phi = Math.acos(position.y / radius); // angle from north pole
-    const lat = 90 - (phi * 180 / Math.PI);
-
-    // Calculate theta from x-z plane
-    const theta = Math.atan2(position.z, -position.x); // angle in x-z plane
-
-    // Convert theta back to longitude
-    let lng = (theta * 180 / Math.PI) - 180;
-
-    // Normalize to -180 to 180
-    if (lng > 180) lng -= 360;
-    if (lng < -180) lng += 360;
-
-    return { lat, lng };
-  };
-
-  // Position pinpoint based on coordinates
-  useEffect(() => {
-    if (pinpointRef.current && coords && coords[0] && coords[1]) {
-      const lat = parseFloat(coords[0]);
-      const lng = parseFloat(coords[1]);
-
-      if (!isNaN(lat) && !isNaN(lng)) {
-        const position = latLngToVector3(lat, lng);
-        pinpointRef.current.position.copy(position);
-        pinpointRef.current.visible = true;
-      }
-    }
-  }, [coords]);
-
-  const geometry = useMemo(() => new THREE.SphereGeometry(1, 128, 96), []);
-
-  const earthMaterial = useMemo(() => {
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        dayTexture: { value: earthMap },
-        nightTexture: { value: earthLights },
-        specularMap: { value: earthSpec },
-        bumpMap: { value: earthBump },
-        bumpScale: { value: 0.04 },
-        sunDirection: { value: sunDirection },
-        emissionStrength: { value: 0.8 },
-      },
-      vertexShader: vertexShader,
-      fragmentShader: fragmentShader,
-    });
-    
-    return material;
-  }, [earthMap, earthLights, earthSpec, earthBump, sunDirection]);
-
-  const cloudsMaterial = useMemo(() => new THREE.MeshBasicMaterial({
-    map: earthClouds,
-    transparent: true,
-    opacity: 0.5,
-  }), [earthClouds]);
-
-  const fresnelMaterial = useMemo(() => new THREE.MeshBasicMaterial({
-    color: 0x0099ff,
-    transparent: true,
-    opacity: 0.1,
-    side: THREE.BackSide,
-  }), []);
-
-  // Cleanup effect for materials and geometry
-  useEffect(() => {
-    return () => {
-      // Dispose of materials
-      earthMaterial.dispose();
-      cloudsMaterial.dispose();
-      fresnelMaterial.dispose();
-      pinpointMaterial.dispose();
-      
-      // Dispose of geometry
-      geometry.dispose();
-      pinpointGeometry.dispose();
-    };
-  }, [earthMaterial, cloudsMaterial, fresnelMaterial, pinpointMaterial, geometry, pinpointGeometry]);
-
-  // Set Earth's axial tilt
-  useEffect(() => {
-    if (tiltGroupRef.current) {
-      tiltGroupRef.current.rotation.z = THREE.MathUtils.degToRad(23.44);
-    }
-  }, []);
-
-  // Initialize with default rotation
-  useEffect(() => {
-    if (earthGroupRef.current) {
-      earthGroupRef.current.rotation.set(0, THREE.MathUtils.degToRad(-90), 0);
-    }
-  }, []);
-
-  // Handle manual rotation from sliders
-  useEffect(() => {
-    if (earthGroupRef.current && manualRotation) {
-      const latRad = THREE.MathUtils.degToRad(manualRotation.lat);
-      const lngRad = THREE.MathUtils.degToRad(manualRotation.lng);
-
-      gsap.to(earthGroupRef.current.rotation, {
-        x: -latRad,
-        y: THREE.MathUtils.degToRad(-90) - lngRad,
-        z: 0,
-        duration: 0.5,
-        ease: 'power2.out',
-        overwrite: true,
-      });
-    }
-  }, [manualRotation]);
-
-  // Handle mouse events for double-click
-  const handlePointerDown = (event: { stopPropagation: () => void; point: THREE.Vector3 }) => {
-    event.stopPropagation();
-
-    const point = event.point;
-    if (point && earthMeshRef.current) {
-      clickCount.current += 1;
-
-      if (clickCount.current === 1) {
-        clickTimer.current = setTimeout(() => {
-          clickCount.current = 0;
-        }, 300); // Double-click threshold
-      } else if (clickCount.current === 2) {
-        if (clickTimer.current) {
-          clearTimeout(clickTimer.current);
-        }
-        clickCount.current = 0;
-
-        // Transform the world point to local coordinates of the earth mesh
-        const localPoint = earthMeshRef.current.worldToLocal(point.clone());
-
-        // Get lat/lng from the local intersection point
-        const { lat, lng } = vector3ToLatLng(localPoint);
-
-        console.log('Double-clicked location:', lat, lng, 'World point:', point, 'Local point:', localPoint);
-
-        // Call the callback to update location
-        if (onLocationSelect) {
-          onLocationSelect(lat, lng);
-        }
-      }
-    }
-  };
-
-  // TODO - Broken / Can't get working
-  // // Update sun direction every minute
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     setSunDirection(getSunDirection(new Date()));
-  //   }, 60000); // Update every minute
-
-  //   return () => clearInterval(interval);
-  // }, []);
-
-  // // Update shader uniform when sun direction changes
-  // useEffect(() => {
-  //   if (earthMaterial.uniforms.sunDirection) {
-  //     earthMaterial.uniforms.sunDirection.value = sunDirection;
-  //   }
-  // }, [sunDirection, earthMaterial]);
-
-  // Cleanup animations on unmount
-  useEffect(() => {
-    const earthGroup = earthGroupRef.current;
-    
-    return () => {
-      // Kill all GSAP animations on this component
-      if (earthGroup?.rotation) {
-        gsap.killTweensOf(earthGroup.rotation);
-      }
-      
-      // Clear any pending timers
-      if (clickTimer.current) {
-        clearTimeout(clickTimer.current);
-      }
-    };
-  }, []);
-
-  // Animate clouds and pinpoint
-  useFrame((state) => {
-    if (cloudsMeshRef.current) {
-      cloudsMeshRef.current.rotation.y += 0.00005;
-    }
-
-    // Only auto-rotate if not currently animating to a location
-    if (earthGroupRef.current && !gsap.isTweening(earthGroupRef.current.rotation)) {
-      // Very slow auto-rotation
-      earthGroupRef.current.rotation.y += 0.00002;
-    }
-
-    if (pinpointRef.current && pinpointRef.current.visible) {
-      const time = state.clock.getElapsedTime();
-      const scale = 0.55 + Math.sin(time * 1) * 0.1;
-      pinpointRef.current.scale.setScalar(scale);
-    }
-  });
-
-  return (
-    <>
-      <ambientLight intensity={0.8} />
-      <directionalLight position={[0, 0, 0]} intensity={5} />
-      <group ref={tiltGroupRef}>
-        <group ref={earthGroupRef}>
-          <mesh
-            ref={earthMeshRef}
-            geometry={geometry}
-            material={earthMaterial}
-            onPointerDown={handlePointerDown}
-          />
-          <mesh ref={cloudsMeshRef} geometry={geometry} material={cloudsMaterial} scale={1.003} />
-          <mesh geometry={geometry} material={fresnelMaterial} scale={1.01} />
-          <mesh ref={pinpointRef} geometry={pinpointGeometry} material={pinpointMaterial} visible={false} />
-        </group>
-      </group>
-    </>
-  );
-};
-
-// Component to control camera position based on viewport
-const CameraController = () => {
-  const { camera, viewport } = useThree();
-
-  useEffect(() => {
-    const radius = 1; // Earth radius
-    const fovRad = THREE.MathUtils.degToRad(75); // Camera FOV
-    const aspect = viewport.width / viewport.height;
-
-    // Calculate vertical FOV
-    const fovY = 2 * Math.atan(Math.tan(fovRad / 2) / aspect);
-    const distanceVertical = radius / Math.sin(fovY / 2);
-
-    // Calculate horizontal FOV
-    const fovX = 2 * Math.atan(Math.tan(fovRad / 2) * aspect);
-    const distanceHorizontal = radius / Math.sin(fovX / 2);
-
-    // Use the larger distance to ensure Earth fits in both directions
-    const distance = Math.max(distanceVertical, distanceHorizontal);
-
-    camera.position.set(0, 0, distance);
-    camera.updateProjectionMatrix();
-  }, [camera, viewport]);
-
-  return null;
-};
-
-const EarthScene = ({ coords, onLocationSelect, manualRotation }: Props) => {
+/**
+ * Main Earth Scene component
+ * Renders a 3D Earth globe with interactive features:
+ * - Dynamic day/night lighting based on current time
+ * - Pinpoint marker for selected location
+ * - Interactive rotation and zoom controls
+ * - Location selection via double-clicking
+ */
+export default function EarthScene({ coords, onLocationSelect, manualRotation, zoom = 1 }: EarthSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Handle WebGL context loss
+  // Handle WebGL context loss for robustness
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Prevent default behavior when context is lost to enable recovery
     const handleContextLost = (event: Event) => {
       console.warn('WebGL context lost. Preventing default behavior.');
       event.preventDefault();
     };
 
+    // Handle context restoration
     const handleContextRestored = () => {
       console.log('WebGL context restored.');
     };
@@ -368,26 +46,47 @@ const EarthScene = ({ coords, onLocationSelect, manualRotation }: Props) => {
     <Canvas
       ref={canvasRef}
       camera={{ fov: 75 }}
+      // Ensure the canvas element itself is CSS-transparent so page content shows through
+      style={{ background: 'transparent' }}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
         toneMappingExposure: 0.5,
-        preserveDrawingBuffer: true,
+        preserveDrawingBuffer: true, // Enables taking screenshots
         powerPreference: "high-performance",
+        // Keep the canvas transparent so the page background shows through.
+        // Cloud and atmosphere materials are tuned to avoid tinting the oceans.
         alpha: true,
         premultipliedAlpha: false,
         stencil: false,
         depth: true,
       }}
       onCreated={({ gl }) => {
-        // Additional WebGL context settings
+        // Additional WebGL settings for development
         gl.debug.checkShaderErrors = process.env.NODE_ENV === 'development';
+        // Make sure the GL clear color has zero alpha so cleared pixels are transparent
+        // (prevents the default black clear color from showing through)
+        try {
+          gl.setClearColor(new THREE.Color(0x000000), 0);
+        } catch {
+          // Some contexts may not expose setClearColor; fall back to clearAlpha
+          if (typeof gl.clear === 'function') {
+            // @ts-expect-error - depending on the renderer binding
+            gl.clearColor(0, 0, 0, 0);
+          }
+        }
       }}
     >
-      <CameraController />
-      <EarthModel coords={coords} onLocationSelect={onLocationSelect} manualRotation={manualRotation} />
+      {/* Camera controller manages viewing distance based on zoom level */}
+      <CameraController zoom={zoom} />
+      
+      {/* Earth model with all interactive features */}
+      <EarthModel 
+        coords={coords} 
+        onLocationSelect={onLocationSelect} 
+        manualRotation={manualRotation}
+        zoom={zoom}
+      />
     </Canvas>
   );
 };
-
-export default EarthScene;
