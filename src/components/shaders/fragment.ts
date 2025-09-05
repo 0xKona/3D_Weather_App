@@ -1,38 +1,75 @@
 /**
- * This shader allows the transition between night an day, allowing the smooth transitions
- * that turn the lights on as the earth rotates into night
+ * Fragment shader for Earth rendering
+ * Handles day/night transitions and lighting effects based on sun position
  */
 export const fragmentShader = `
-    uniform sampler2D dayTexture;
-    uniform sampler2D nightTexture;
-    uniform sampler2D specularMap;
-    uniform vec3 sunDirection;
+    // Input textures
+    uniform sampler2D dayTexture;    // Earth daytime texture
+    uniform sampler2D nightTexture;  // Earth nighttime lights texture
+    uniform sampler2D specularMap;   // Specular map (water reflection)
+    uniform sampler2D bumpMap;       // Terrain bump map
     
+    // Sun position for lighting calculation
+    uniform vec3 sunDirection;
+    uniform float bumpScale;
+    
+    // Inputs from vertex shader
     varying vec3 vNormal;
     varying vec3 vPosition;
     varying vec2 vUv;
+    varying vec3 vWorldNormal;
     varying vec3 vWorldPosition;
     
     void main() {
-    vec3 dayColor = texture2D(dayTexture, vUv).rgb;
-    vec3 nightColor = texture2D(nightTexture, vUv).rgb;
-    
-    // Calculate lighting based on sun direction
-    float sunDot = dot(vNormal, sunDirection);
-    float lightIntensity = max(0.0, sunDot);
-    
-    // Create smooth transition between day and night
-    float mixFactor = smoothstep(-0.1, 0.1, sunDot);
-    
-    // Slightly brighten day colors for better visibility
-    vec3 enhancedDayColor = dayColor * 1.3; // 30% brightness boost for day areas
-    
-    // Mix day and night textures based on lighting
-    vec3 color = mix(nightColor * 2.0, enhancedDayColor, mixFactor);
-    
-    // Add some ambient light so night side isn't completely black
-    color += dayColor * 0.25; // Increase from 0.1 to 0.25
-    
-    gl_FragColor = vec4(color, 1.0);
+        // Sample all textures
+        vec3 dayColor = texture2D(dayTexture, vUv).rgb;
+        vec3 nightColor = texture2D(nightTexture, vUv).rgb;
+        vec3 specularColor = texture2D(specularMap, vUv).rgb;
+        
+        // Get the direction from world center to this vertex (normalized)
+        // This effectively gives us the direction vector pointing from
+        // the center of the Earth to this point on the surface,
+        // which is what we need for the day/night calculation
+        vec3 worldDirectionToSurface = normalize(vWorldPosition);
+        
+        // Use world normal for lighting - this makes lighting independent of Earth rotation
+        vec3 worldNormal = normalize(vWorldNormal);
+        
+        // Calculate if this point is facing the sun using world coordinates
+        // This makes the lighting independent of Earth's rotation
+        float sunDot = dot(worldNormal, normalize(sunDirection));
+        
+        // Enhance the night lights - make them brighter and slightly colored
+        vec3 enhancedNightColor = nightColor * vec3(1.5, 1.2, 1.0) * 2.5;
+        
+        // Create smooth transition between day and night with wider transition zone
+        float mixFactor = smoothstep(-0.15, 0.15, sunDot);
+        
+        // Calculate specular reflection on water
+        float specularIntensity = 0.0;
+        if (sunDot > 0.0) {
+            // Only calculate specular on day side
+            vec3 viewDirection = normalize(-vPosition);
+            vec3 halfVector = normalize(viewDirection + sunDirection);
+            float specularFactor = max(0.0, dot(worldNormal, halfVector));
+            
+            // Higher power for sharper specular highlight
+            specularIntensity = pow(specularFactor, 50.0) * specularColor.r * 2.0;
+        }
+        
+        // Enhance day colors slightly
+        vec3 enhancedDayColor = dayColor * (1.0 + 0.3 * max(0.0, sunDot));
+        
+        // Mix day and night textures based on sun position
+        vec3 baseColor = mix(enhancedNightColor, enhancedDayColor, mixFactor);
+        
+        // Add ambient light to both day and night sides
+        baseColor += dayColor * 0.15; 
+        
+        // Add specular highlight
+        baseColor += specularIntensity * vec3(0.9, 0.9, 1.0);
+        
+        // Final color with full opacity (1.0)
+        gl_FragColor = vec4(baseColor, 1.0);
     }
 `
