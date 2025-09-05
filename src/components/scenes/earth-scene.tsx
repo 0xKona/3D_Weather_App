@@ -66,19 +66,19 @@ const EarthUtils = {
    * @returns number representing light intensity
    */
   getLightingIntensity: (sunDirection: THREE.Vector3): number => {
-    // Since the sun is now in the horizontal plane (y=0), 
-    // we calculate intensity based on the sun's position magnitude
-    const magnitude = sunDirection.length();
-    
-    // Provide consistent lighting intensity throughout the day
-    // The shader handles day/night transitions, so we just need ambient lighting
-    const baseIntensity = 1.0;
-    
-    // Ensure intensity is at a good level for both day and night visibility
-    const intensity = Math.max(0.8, baseIntensity * magnitude);
-    
-    // Cap at reasonable maximum to prevent overexposure
-    return Math.min(1.5, intensity);
+    // Use the sun's vertical component to shape intensity.
+    // When the sun is above the horizon (y > 0) we scale intensity
+    // modestly so daytime isn't overly bright. At night we keep a
+    // reasonable minimum so features remain visible.
+    const upFactor = sunDirection.y; // -1..1
+
+    // Daytime: interpolate between 0.6 and 1.1 based on sun height
+    if (upFactor > 0) {
+      return Math.min(1.1, 0.6 + 0.5 * upFactor);
+    }
+
+    // Nighttime: keep a small but non-zero intensity for subtle illumination
+    return 0.35;
   },
 
   /**
@@ -494,9 +494,9 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
 
   return (
     <>
-      {/* Minimal ambient light for overall scene illumination */}
-      {/* Earth lighting is primarily handled by the shader */}
-      <ambientLight intensity={0.1} color={new THREE.Color(0x404050)} />
+  {/* Minimal ambient light for overall scene illumination */}
+  {/* Earth lighting is primarily handled by the shader */}
+  <ambientLight intensity={0.14} color={new THREE.Color(0x303040)} />
       
       {/* Main directional sun light that moves with time */}
       {/* This mostly affects clouds and atmosphere */}

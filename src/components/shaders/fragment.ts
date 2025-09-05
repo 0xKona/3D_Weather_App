@@ -42,11 +42,12 @@ export const fragmentShader = `
         // Calculate if this point is facing the sun
         float sunDot = dot(surfaceNormal, normalize(sunDirection));
         
-        // Enhance the night lights - reduce brightness to prevent transparency issues
-        vec3 enhancedNightColor = nightColor * vec3(1.2, 1.1, 1.0) * 1.5;
-        
-        // Create smooth transition between day and night with wider transition zone
-        float mixFactor = smoothstep(-0.15, 0.15, sunDot);
+    // Enhance the night lights so city lights are visible without overexposing
+    vec3 enhancedNightColor = nightColor * vec3(1.2, 1.1, 1.0) * 1.8;
+
+    // Create a smoother, wider transition between day and night so the
+    // terminator isn't harsh. This helps both visibility and realism.
+    float mixFactor = smoothstep(-0.25, 0.25, sunDot);
         
         // Calculate specular reflection on water
         float specularIntensity = 0.0;
@@ -61,17 +62,23 @@ export const fragmentShader = `
             specularIntensity = pow(specularFactor, 50.0) * specularColor.r * 1.0;
         }
         
-        // Enhance day colors slightly - reduce enhancement to prevent over-brightness
-        vec3 enhancedDayColor = dayColor * (1.0 + 0.2 * max(0.0, sunDot));
+    // Enhance day colors subtly — smaller multiplier so bright areas
+    // don't wash out detail.
+    vec3 enhancedDayColor = dayColor * (1.0 + 0.12 * max(0.0, sunDot));
         
         // Mix day and night textures based on sun position
         vec3 baseColor = mix(enhancedNightColor, enhancedDayColor, mixFactor);
         
-        // Add ambient light to both day and night sides - reduce to prevent over-brightness
-        baseColor += dayColor * 0.1; 
-        
-        // Add specular highlight
-        baseColor += specularIntensity * vec3(0.9, 0.9, 1.0);
+    // Add a small ambient term on the day side to lift midtones (kept small)
+    baseColor += dayColor * 0.06;
+
+    // Add specular highlight (reduced intensity to avoid blown highlights)
+    baseColor += specularIntensity * 0.6 * vec3(0.9, 0.9, 1.0);
+
+    // Add a subtle ambient lift on the night side so land/ocean features
+    // remain visible without losing the night lights effect.
+    float nightFactor = 1.0 - mixFactor;
+    baseColor += vec3(0.04) * nightFactor;
         
         // Clamp colors to prevent over-brightness which could cause transparency issues
         baseColor = clamp(baseColor, 0.0, 1.0);
