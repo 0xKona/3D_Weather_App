@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 // If you are reading this, why?
 export const metadata: Metadata = {
-  title: "Weather App",
+  title: "3D Weather App",
   description: "Weather application using ThreeJS",
 };
 
