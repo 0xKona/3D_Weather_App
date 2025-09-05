@@ -26,21 +26,24 @@ export const fragmentShader = `
         vec3 nightColor = texture2D(nightTexture, vUv).rgb;
         vec3 specularColor = texture2D(specularMap, vUv).rgb;
         
-        // Get the direction from world center to this vertex (normalized)
-        // This effectively gives us the direction vector pointing from
-        // the center of the Earth to this point on the surface,
-        // which is what we need for the day/night calculation
-        vec3 worldDirectionToSurface = normalize(vWorldPosition);
+        // Calculate longitude from UV coordinates (equirectangular projection)
+        // UV.x goes from 0 to 1, representing longitude from -180° to +180°
+        // UV.y goes from 0 to 1, representing latitude from +90° to -90°
+        float longitude = (vUv.x - 0.5) * 2.0 * 3.14159265359; // Convert to radians: -π to +π
+        float latitude = (0.5 - vUv.y) * 3.14159265359;        // Convert to radians: +π/2 to -π/2
         
-        // Use world normal for lighting - this makes lighting independent of Earth rotation
-        vec3 worldNormal = normalize(vWorldNormal);
+        // Calculate the surface normal at this point on the sphere
+        vec3 surfaceNormal = vec3(
+            cos(latitude) * cos(longitude),  // X component
+            sin(latitude),                   // Y component  
+            cos(latitude) * sin(longitude)   // Z component
+        );
         
-        // Calculate if this point is facing the sun using world coordinates
-        // This makes the lighting independent of Earth's rotation
-        float sunDot = dot(worldNormal, normalize(sunDirection));
+        // Calculate if this point is facing the sun
+        float sunDot = dot(surfaceNormal, normalize(sunDirection));
         
-        // Enhance the night lights - make them brighter and slightly colored
-        vec3 enhancedNightColor = nightColor * vec3(1.5, 1.2, 1.0) * 2.5;
+        // Enhance the night lights - reduce brightness to prevent transparency issues
+        vec3 enhancedNightColor = nightColor * vec3(1.2, 1.1, 1.0) * 1.5;
         
         // Create smooth transition between day and night with wider transition zone
         float mixFactor = smoothstep(-0.15, 0.15, sunDot);
@@ -51,25 +54,29 @@ export const fragmentShader = `
             // Only calculate specular on day side
             vec3 viewDirection = normalize(-vPosition);
             vec3 halfVector = normalize(viewDirection + sunDirection);
-            float specularFactor = max(0.0, dot(worldNormal, halfVector));
+            // Use surface normal for specular calculation
+            float specularFactor = max(0.0, dot(surfaceNormal, halfVector));
             
-            // Higher power for sharper specular highlight
-            specularIntensity = pow(specularFactor, 50.0) * specularColor.r * 2.0;
+            // Higher power for sharper specular highlight - reduce intensity
+            specularIntensity = pow(specularFactor, 50.0) * specularColor.r * 1.0;
         }
         
-        // Enhance day colors slightly
-        vec3 enhancedDayColor = dayColor * (1.0 + 0.3 * max(0.0, sunDot));
+        // Enhance day colors slightly - reduce enhancement to prevent over-brightness
+        vec3 enhancedDayColor = dayColor * (1.0 + 0.2 * max(0.0, sunDot));
         
         // Mix day and night textures based on sun position
         vec3 baseColor = mix(enhancedNightColor, enhancedDayColor, mixFactor);
         
-        // Add ambient light to both day and night sides
-        baseColor += dayColor * 0.15; 
+        // Add ambient light to both day and night sides - reduce to prevent over-brightness
+        baseColor += dayColor * 0.1; 
         
         // Add specular highlight
         baseColor += specularIntensity * vec3(0.9, 0.9, 1.0);
         
-        // Final color with full opacity (1.0)
+        // Clamp colors to prevent over-brightness which could cause transparency issues
+        baseColor = clamp(baseColor, 0.0, 1.0);
+        
+        // Final color with full opacity (1.0) - explicitly set alpha to prevent transparency
         gl_FragColor = vec4(baseColor, 1.0);
     }
 `

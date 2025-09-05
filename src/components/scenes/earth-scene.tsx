@@ -36,20 +36,27 @@ const EarthUtils = {
     // Calculate time as decimal hours (0-24)
     const timeInHours = hours + minutes / 60 + seconds / 3600;
     
-    // Convert to rotation angle (0-360 degrees)
-    // At UTC 0:00 (midnight), longitude 0 should be facing away from the sun
-    // At UTC 12:00 (noon), longitude 0 should be facing toward the sun
-    const rotationAngle = ((timeInHours / 24) * 360 + 180) % 360;
-    const rotationRadians = THREE.MathUtils.degToRad(rotationAngle);
+    // Calculate sun's longitude based on UTC time
+    // At UTC 12:00 (noon), sun is at longitude 0° (Greenwich)
+    // Sun moves 15° per hour (360° / 24 hours)
+    const sunLongitudeDegrees = (timeInHours - 12) * 15; // -180° to +180°
+    const sunLongitudeRadians = THREE.MathUtils.degToRad(sunLongitudeDegrees);
     
-    // Create sun direction vector
-    // The direction is where the sun is in relation to Earth's center
-    const x = Math.cos(rotationRadians);
-    const z = 0; // Simplification - no seasonal tilt change
-    const y = Math.sin(rotationRadians);
+    // Sun is always at latitude 0° (equator) for simplicity
+    const sunLatitudeRadians = 0;
     
-    // Return normalized vector (direction only)
-    return new THREE.Vector3(x, y, z).normalize();
+    // Convert spherical coordinates to Cartesian
+    // This gives us the direction FROM Earth center TO the sun
+    const x = Math.cos(sunLatitudeRadians) * Math.cos(sunLongitudeRadians);
+    const y = Math.sin(sunLatitudeRadians);
+    const z = Math.cos(sunLatitudeRadians) * Math.sin(sunLongitudeRadians);
+    
+    const sunDirection = new THREE.Vector3(x, y, z).normalize();
+    
+    // Debug logging to verify sun direction
+    console.log(`UTC Time: ${timeInHours.toFixed(2)}h, Sun Longitude: ${sunLongitudeDegrees.toFixed(1)}°, Direction: [${sunDirection.x.toFixed(3)}, ${sunDirection.y.toFixed(3)}, ${sunDirection.z.toFixed(3)}]`);
+    
+    return sunDirection;
   },
 
   /**
@@ -59,19 +66,19 @@ const EarthUtils = {
    * @returns number representing light intensity
    */
   getLightingIntensity: (sunDirection: THREE.Vector3): number => {
-    // For better day/night contrast, we use the absolute Y value
-    // and add a minimum intensity to prevent complete darkness
-    const baseIntensity = Math.abs(sunDirection.y);
+    // Since the sun is now in the horizontal plane (y=0), 
+    // we calculate intensity based on the sun's position magnitude
+    const magnitude = sunDirection.length();
     
-    // Scale up intensity during daytime (when Y is positive)
-    // This creates a brighter day side
-    const scaleFactor = sunDirection.y > 0 ? 1.8 : 1.0;
+    // Provide consistent lighting intensity throughout the day
+    // The shader handles day/night transitions, so we just need ambient lighting
+    const baseIntensity = 1.0;
     
-    // Ensure intensity is never below minimum threshold for night side visibility
-    const intensity = Math.max(0.5, baseIntensity * scaleFactor);
+    // Ensure intensity is at a good level for both day and night visibility
+    const intensity = Math.max(0.8, baseIntensity * magnitude);
     
     // Cap at reasonable maximum to prevent overexposure
-    return Math.min(2.0, intensity);
+    return Math.min(1.5, intensity);
   },
 
   /**
@@ -216,8 +223,8 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
         specularMap: { value: earthSpec },
         // Bump map for terrain elevation
         bumpMap: { value: earthBump },
-        // Sun direction for lighting calculations
-        sunDirection: { value: sunDirection.clone() },
+        // Sun direction for lighting calculations - will be updated via uniform
+        sunDirection: { value: new THREE.Vector3(1, 0, 0) }, // Default direction
         // Bump scale for terrain detail
         bumpScale: { value: 0.04 },
       },
@@ -227,16 +234,22 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
       fragmentShader: fragmentShader,
       // Additional properties for proper rendering
       transparent: false, // Earth should be fully opaque
+      alphaTest: 0, // No alpha testing needed for opaque material
+      opacity: 1.0, // Explicitly set full opacity
       side: THREE.FrontSide,
       // Set depth testing and writing for correct rendering
       depthTest: true,
       depthWrite: true,
+      // Ensure proper blending for opaque material
+      blending: THREE.NormalBlending,
+      // Prevent any premultiplied alpha issues
+      premultipliedAlpha: false,
     });
     
-    console.log("Earth material created with sun direction:", sunDirection.toArray());
+    console.log("Earth material created");
     
     return material;
-  }, [earthMap, earthLights, earthSpec, earthBump, sunDirection]);
+  }, [earthMap, earthLights, earthSpec, earthBump]); // Removed sunDirection from dependencies
 
   // Create clouds material - transparent layer over Earth
   // Using MeshBasicMaterial for clouds to ensure they're always visible
@@ -409,12 +422,12 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
       // This ensures the light rays are always directed at the Earth
       sunLightRef.current.lookAt(0, 0, 0);
       
-      // Update light color based on time of day (warmer at sunrise/sunset)
-      const dayFactor = Math.max(0, Math.min(1, (sunDirection.y + 0.3) / 0.6));
+      // Update light color - keep it consistent since shader handles day/night
+      // We use a neutral daylight color since the shader will handle the transitions
       const lightColor = new THREE.Color().setHSL(
-        0.08, // Slight orange-yellow hue
-        0.5, 
-        0.5 + (dayFactor * 0.5) // Brighter during day
+        0.1, // Slight warm hue
+        0.3, // Low saturation for natural light
+        0.7 // Good brightness level
       );
       sunLightRef.current.color = lightColor;
     }
