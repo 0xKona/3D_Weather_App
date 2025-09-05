@@ -257,27 +257,31 @@ const EarthModel = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
   const cloudsMaterial = useMemo(() => new THREE.MeshBasicMaterial({
     map: earthClouds,
     transparent: true,
-    opacity: 0.55, // Semi-transparent clouds
-    alphaTest: 0.05, // Helps with transparency sorting
-    blending: THREE.CustomBlending,
-    blendSrc: THREE.SrcAlphaFactor,
-    blendDst: THREE.OneMinusSrcAlphaFactor,
-    blendEquation: THREE.AddEquation,
-    depthWrite: false, // Prevents z-fighting with the Earth
+  opacity: 0.45, // Slightly reduced cloud opacity to avoid heavy overlay
+  // Increase alphaTest to remove very faint cloud fragments which can
+  // cause visible translucency artifacts around the oceans.
+  alphaTest: 0.1,
+  // Use normal blending and enable depth writes so clouds occlude
+  // correctly and don't make the Earth appear translucent.
+  blending: THREE.NormalBlending,
+  depthWrite: true,
     side: THREE.FrontSide,
   }), [earthClouds]);
 
   // Create atmosphere material - subtle blue glow around Earth
   // Using MeshPhongMaterial for better control over the glow effect
   const fresnelMaterial = useMemo(() => new THREE.MeshPhongMaterial({
-    color: 0x3388ff,
-    transparent: true,
-    opacity: 0.15,
-    side: THREE.BackSide, // Render on inside of sphere for glow effect
-    shininess: 100, // Makes the atmosphere glow more
-    emissive: new THREE.Color(0x1155aa),
-    emissiveIntensity: 0.2,
-    depthWrite: false, // Prevents z-fighting with the Earth
+  color: 0x3388ff,
+  transparent: true,
+  // Much lower opacity and additive blending so the atmosphere brightens
+  // the rim without darkening or tinting the Earth's surface.
+  opacity: 0.06,
+  side: THREE.BackSide, // Render on inside of sphere for glow effect
+  shininess: 100,
+  emissive: new THREE.Color(0x1155aa),
+  emissiveIntensity: 0.25,
+  depthWrite: false, // Prevents z-fighting with the Earth
+  blending: THREE.AdditiveBlending,
   }), []);
 
   // Cleanup effect to prevent memory leaks
@@ -623,12 +627,16 @@ const EarthScene = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
     <Canvas
       ref={canvasRef}
       camera={{ fov: 75 }}
+      // Ensure the canvas element itself is CSS-transparent so page content shows through
+      style={{ background: 'transparent' }}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
         toneMappingExposure: 0.5,
         preserveDrawingBuffer: true, // Enables taking screenshots
         powerPreference: "high-performance",
+        // Keep the canvas transparent so the page background shows through.
+        // Cloud and atmosphere materials are tuned to avoid tinting the oceans.
         alpha: true,
         premultipliedAlpha: false,
         stencil: false,
@@ -637,6 +645,17 @@ const EarthScene = ({ coords, onLocationSelect, manualRotation, zoom = 1 }: Prop
       onCreated={({ gl }) => {
         // Additional WebGL settings for development
         gl.debug.checkShaderErrors = process.env.NODE_ENV === 'development';
+        // Make sure the GL clear color has zero alpha so cleared pixels are transparent
+        // (prevents the default black clear color from showing through)
+        try {
+          gl.setClearColor(new THREE.Color(0x000000), 0);
+        } catch {
+          // Some contexts may not expose setClearColor; fall back to clearAlpha
+          if (typeof gl.clear === 'function') {
+            // @ts-expect-error - depending on the renderer binding
+            gl.clearColor(0, 0, 0, 0);
+          }
+        }
       }}
     >
       {/* Camera controller manages viewing distance based on zoom level */}
