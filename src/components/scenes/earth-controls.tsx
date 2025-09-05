@@ -10,11 +10,12 @@ interface Props {
 export default function EarthControls({ 
   manualRotation, 
   setManualRotation, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   zoom, 
   setZoom 
 }: Props) {
   return (
-    <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 z-20 bg-black/50 backdrop-blur-sm rounded-lg p-4 text-white">
+    <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 z-20 bg-black/50 backdrop-blur-sm rounded-lg p-4 text-white w-[75%]">
       <h3 className="text-sm font-semibold mb-3">Earth Controls</h3>
       
       <div className="space-y-3">
@@ -46,8 +47,8 @@ export default function EarthControls({
           />
         </div>
         
-        {/* Zoom Control */}
-        <div>
+        {/* Zoom Control - TODO: Fix - Currently Disabled, Usage is Janky at best */}
+        {/* <div>
           <label className="block text-xs mb-1">Zoom: {zoom.toFixed(1)}x</label>
           <input
             type="range"
@@ -58,7 +59,7 @@ export default function EarthControls({
             onChange={(e) => setZoom(parseFloat(e.target.value))}
             className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
           />
-        </div>
+        </div> */}
         
         {/* Reset Button */}
         <button
