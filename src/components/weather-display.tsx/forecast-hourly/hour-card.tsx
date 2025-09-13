@@ -9,13 +9,13 @@ interface Props {
 export default function HourlyCard({ hour }: Props) {
 
     const hourTime = new Date(hour.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const WeatherIcon = (weatherIcons[hour.condition.code] || TiWeatherSunny) as React.ComponentType<{ size?: number, className: string }>;
+    const WeatherIcon = (weatherIcons[hour.condition.code] || TiWeatherSunny) as React.ComponentType<{ size?: number, className?: string }>;
     return (
-        <div className="flex flex-col items-center p-2 bg-black/10 rounded-lg border border-white">
+        <div className="flex items-center gap-3 p-2 m-1 bg-black/10 rounded-lg border border-white w-[98%]">
             <p className="text-xs font-medium">{hourTime}</p>
-            <WeatherIcon size={30} className="my-1" />
-            <p className="text-sm">{hour.temp_c}°C</p>
             <p className="text-xs opacity-70">{hour.condition.text}</p>
+            <p className="ml-auto text-sm font-semibold">{hour.temp_c}°C</p>
+            <WeatherIcon size={30} />
         </div>
     );
 }
