@@ -18,7 +18,7 @@ export default function WeatherDisplay({ data, loading, error }: Props) {
 
   if (loading) {
     return (
-      <div className="flex flex-col w-full h-screen md:p-16 justify-center items-center bg-transparent">
+      <div className="flex flex-col w-full md:h-screen md:p-16 justify-center items-center bg-transparent">
         <div className="card w-full max-w-md bg-black/20 backdrop-blur-sm rounded-lg p-4 text-white shadow-xl">
           <div className="flex items-center justify-center">
             <span className="loading loading-spinner loading-lg text-primary"></span>
@@ -42,7 +42,7 @@ export default function WeatherDisplay({ data, loading, error }: Props) {
   if (!data) return null;
 
   return (
-    <div className="flex flex-col w-full h-screen md:p-16 justify-between bg-transparent">
+    <div className="flex flex-col w-full md:h-screen md:p-16 justify-between bg-transparent">
       <CoverImage data={data} />
       <CurrentWeatherCard data={data} />
       <ForecastWeekDisplay setSelectedDay={setSelectedDay} />
