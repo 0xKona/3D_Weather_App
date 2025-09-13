@@ -93,7 +93,7 @@ export default function ForecastWeekDisplay({ setSelectedDay}: Props) {
     return (
         <div className="card w-full bg-black/20 backdrop-blur-sm rounded-lg p-4 text-white shadow-xl">
             <h3 className="text-lg font-semibold mb-4">{`${daysToRequest}-Day Forecast`}</h3>
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-3 gap-4 mb-6 auto-rows-fr">
                 {forecastDays.map((day: ForecastDay, index: number) => (
                     <div onClick={() => handleDayClick(day)} key={index}>
                         <ForecastDayCard day={day} />
