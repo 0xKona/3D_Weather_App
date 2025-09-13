@@ -42,12 +42,15 @@ export default function WeatherDisplay({ data, loading, error }: Props) {
   if (!data) return null;
 
   return (
-    <div className="flex flex-col w-full md:h-screen md:p-16 justify-between bg-transparent">
+    <div className="flex flex-col w-full h-auto md:h-screen md:p-16 justify-start bg-transparent overflow-auto md:overflow-hidden">
       <CoverImage data={data} />
       <CurrentWeatherCard data={data} />
       <ForecastWeekDisplay setSelectedDay={setSelectedDay} />
+
       {selectedDay && (
+        <div className="w-full md:flex-1 md:min-h-0">
           <HourlyContainer selectedDay={selectedDay} />
+        </div>
       )}
     </div>
   );
