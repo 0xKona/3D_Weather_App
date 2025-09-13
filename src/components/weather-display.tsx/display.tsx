@@ -42,17 +42,13 @@ export default function WeatherDisplay({ data, loading, error }: Props) {
   if (!data) return null;
 
   return (
-    // Mobile: natural page flow and scrolling (overflow-auto).
-    // Desktop (md+): fixed to viewport height and internal scrolling for the hourly list.
-    <div className="flex flex-col w-full h-auto md:h-screen md:p-16 justify-start md:justify-between bg-transparent overflow-auto md:overflow-hidden">
+    <div className="flex flex-col w-full h-auto md:h-screen md:p-16 justify-start bg-transparent overflow-auto md:overflow-hidden">
       <CoverImage data={data} />
       <CurrentWeatherCard data={data} />
       <ForecastWeekDisplay setSelectedDay={setSelectedDay} />
 
-      {/* Hourly panel should take remaining space on desktop and be scrollable internally.
-          md:flex-1 + md:min-h-0 ensures the child can shrink and its inner overflow works. */}
       {selectedDay && (
-        <div className="mt-4 w-full md:flex-1 md:min-h-0">
+        <div className="w-full md:flex-1 md:min-h-0">
           <HourlyContainer selectedDay={selectedDay} />
         </div>
       )}

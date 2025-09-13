@@ -10,13 +10,7 @@ export default function HourlyContainer({ selectedDay }: Props) {
     const currentTime = Math.floor(Date.now() / 1000); // Current time in epoch
 
     return (
-        // Remove the global max-h here; parent controls sizing on desktop.
-        // Ensure this component can fill parent's available space (h-full, min-h-0).
         <div className="card w-full bg-black/20 backdrop-blur-sm rounded-lg p-4 text-white shadow-xl flex flex-col h-full min-h-0">
-            <h4 className="text-md font-semibold mb-4">
-                Hourly Forecast for {new Date(selectedDay.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-            </h4>
-
             {/* True flex scroll area: allow it to shrink and overflow-y only */}
             <div className="flex flex-col gap-2 pb-2 overflow-y-auto flex-1 min-h-0">
                 {selectedDay.hour
